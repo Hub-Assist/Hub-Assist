@@ -6,7 +6,7 @@ interface TrustedBySectionProps {
 }
 
 export function TrustedBySection({ companies }: Readonly<TrustedBySectionProps>) {
-  const items = [...companies, ...companies]; // duplicate for seamless loop
+  const items = [...companies, ...companies, ...companies, ...companies]; // 4x for seamless fill
 
   return (
     <LandingSection id="trusted-by">
