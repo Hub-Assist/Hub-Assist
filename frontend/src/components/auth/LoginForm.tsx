@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -12,6 +13,7 @@ export function LoginForm() {
   const router = useRouter();
   const setToken = useAuthStore((s) => s.setToken);
   const { mutate, isPending, error } = useLoginUser();
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -57,13 +59,23 @@ export function LoginForm() {
             Forgot password?
           </a>
         </div>
-        <input
-          type="password"
-          autoComplete="current-password"
-          placeholder="••••••••"
-          {...register("password")}
-          className="rounded-full border border-[#D7CFC6] bg-[#EDE2D6] px-4 py-3 text-sm text-[#1A1A1A] placeholder:text-[#6B6B6B] focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            {...register("password")}
+            className="w-full rounded-full border border-[#D7CFC6] bg-[#EDE2D6] px-4 py-3 pr-11 text-sm text-[#1A1A1A] placeholder:text-[#6B6B6B] focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#1A1A1A]"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? "🙈" : "👁️"}
+          </button>
+        </div>
         {errors.password && (
           <p className="text-xs text-[#D4916E]">{errors.password.message}</p>
         )}
