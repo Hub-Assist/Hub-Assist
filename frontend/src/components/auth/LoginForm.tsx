@@ -87,7 +87,7 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-[#6B6B6B]">
         Don&apos;t have an account?{" "}
-        <a href="/auth/register" className="font-semibold text-[#1A1A1A] underline hover:text-[#3D3D3D]">
+        <a href="/register" className="font-semibold text-[#1A1A1A] underline hover:text-[#3D3D3D]">
           Register
         </a>
       </p>
