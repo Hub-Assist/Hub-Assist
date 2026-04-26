@@ -4,6 +4,9 @@ mod access_control;
 pub mod errors;
 pub mod types;
 
+#[cfg(test)]
+mod access_control_tests;
+
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use errors::AccessControlError;
