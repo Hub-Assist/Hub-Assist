@@ -3,6 +3,7 @@ members = [
     "contracts/hubassist_hub",
     "contracts/workspace_booking",
     "contracts/common_types",
+    "contracts/manage_hub",
 ]
 resolver = "2"
 
