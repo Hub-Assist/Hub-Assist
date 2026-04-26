@@ -26,4 +26,16 @@ export const api = {
     request<unknown[]>('/users', {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     }),
+
+  verifyOtp: (email: string, otp: string) =>
+    request<{ access_token: string }>('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    }),
+
+  resendOtp: (email: string) =>
+    request<{ message: string }>('/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
 };
