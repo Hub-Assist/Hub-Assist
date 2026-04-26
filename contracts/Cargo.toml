@@ -4,6 +4,7 @@ members = [
     "contracts/workspace_booking",
     "contracts/membership_token",
     "contracts/access_control",
+    "contracts/payment_escrow",
 ]
 resolver = "2"
 
