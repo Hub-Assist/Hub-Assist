@@ -23,6 +23,9 @@ export class User {
   @Column({ nullable: true })
   stellarPublicKey: string;
 
+  @Column({ nullable: true })
+  profilePicture: string;
+
   @CreateDateColumn()
   createdAt: Date;
 }

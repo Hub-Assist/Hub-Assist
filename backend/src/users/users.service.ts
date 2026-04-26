@@ -22,4 +22,13 @@ export class UsersService {
   create(data: Partial<User>) {
     return this.repo.save(this.repo.create(data));
   }
+
+  async updateProfilePicture(id: string, profilePictureUrl: string) {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    user.profilePicture = profilePictureUrl;
+    return this.repo.save(user);
+  }
 }
