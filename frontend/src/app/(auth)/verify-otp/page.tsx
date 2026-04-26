@@ -2,7 +2,7 @@
 
 import { Suspense, useRef, useState, KeyboardEvent, ClipboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { post } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 import { ResendButton } from "@/components/auth/ResendButton";
 
@@ -59,7 +59,7 @@ function VerifyOtpContent() {
     setError(null);
     setIsPending(true);
     try {
-      await api.verifyOtp(email, otp);
+      await post('/auth/verify-otp', { email, otp });
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid or expired OTP.");

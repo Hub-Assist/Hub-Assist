@@ -1,11 +1,11 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { post } from "@/lib/apiClient";
 
 export function useLoginUser() {
   return useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
-      api.login(email, password),
+      post<{ access_token: string }>("/auth/login", { email, password }),
   });
 }

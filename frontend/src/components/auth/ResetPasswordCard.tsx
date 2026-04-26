@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { resetPasswordSchema, type ResetPasswordValues } from "@/lib/schemas/resetPasswordSchema";
-import { api } from "@/lib/api";
+import { post } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 import { ResendPassword } from "@/components/auth/ResendPassword";
 
@@ -22,7 +22,7 @@ export function ResetPasswordCard({ email }: Readonly<{ email: string }>) {
 
   const onSubmit = async ({ otp, newPassword }: ResetPasswordValues) => {
     try {
-      await api.resetPassword(email, otp, newPassword);
+      await post('/auth/reset-password', { email, otp, newPassword });
       router.push("/login?reset=success");
     } catch (e) {
       setError("root", { message: e instanceof Error ? e.message : "Invalid or expired code." });

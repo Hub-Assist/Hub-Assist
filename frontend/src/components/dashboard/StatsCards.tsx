@@ -1,8 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store/authStore";
+import { get } from "@/lib/apiClient";
 
 function SkeletonCard() {
   return <div className="h-28 animate-pulse rounded-2xl bg-[#EDE2D6]" />;
@@ -20,11 +19,12 @@ function StatCard({ label, value, sub }: Readonly<CardProps>) {
 }
 
 export function StatsCards() {
-  const token = useAuthStore((s) => s.token) ?? "";
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-stats"],
-    queryFn: () => api.getDashboardStats(token),
-    enabled: !!token,
+    queryFn: () => get<{
+      totalMembers: number; verifiedMembers: number;
+      activeWorkspaces: number; deskOccupancy: number;
+    }>("/dashboard/stats"),
   });
 
   if (isPending) return (

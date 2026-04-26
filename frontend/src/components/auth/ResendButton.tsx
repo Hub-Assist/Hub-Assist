@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { api } from "@/lib/api";
+import { post } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 import { CountDownTimer } from "@/components/ui/CountDownTimer";
 
@@ -19,7 +19,7 @@ export function ResendButton({ email }: Readonly<{ email: string }>) {
     setIsPending(true);
     setError(null);
     try {
-      await api.resendOtp(email);
+      await post('/auth/resend-otp', { email });
       setCounting(true);
       setTimerKey((k) => k + 1);
     } catch (e) {
