@@ -1,15 +1,15 @@
 [workspace]
 members = [
-    "contracts/hubassist_hub",
-    "contracts/workspace_booking",
-    "contracts/membership_token",
-    "contracts/access_control",
-    "contracts/payment_escrow",
-    "contracts/common_types",
-    "contracts/manage_hub",
+    "hubassist_hub",
+    "workspace_booking",
+    "membership_token",
+    "access_control",
+    "payment_escrow",
+    "common_types",
+    "manage_hub",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
-common_types = { path = "contracts/common_types" }
+common_types = { path = "common_types" }

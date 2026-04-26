@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, String, Vec};
 
 // ── TTL constant (~30 days at ~5s/ledger) ─────────────────────────────────
 const STAKE_TTL_LEDGERS: u32 = 30 * 17_280;

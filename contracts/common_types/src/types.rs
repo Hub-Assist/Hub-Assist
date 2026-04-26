@@ -28,10 +28,14 @@ pub struct TierFeature {
 #[contracttype]
 #[derive(Clone)]
 pub struct SubscriptionTier {
+    pub id: soroban_sdk::BytesN<32>,
+    pub name: String,
     pub level: TierLevel,
     pub price: i128,
     pub duration_days: u32,
     pub features: soroban_sdk::Vec<TierFeature>,
+    pub is_active: bool,
+    pub max_members: u32,
 }
 
 #[contracttype]
@@ -61,9 +65,10 @@ pub enum TierChangeType {
 #[contracttype]
 #[derive(Clone)]
 pub struct TierChangeRequest {
+    pub id: soroban_sdk::BytesN<32>,
     pub member: soroban_sdk::Address,
-    pub from_tier: TierLevel,
-    pub to_tier: TierLevel,
+    pub from_tier_id: soroban_sdk::BytesN<32>,
+    pub to_tier_id: soroban_sdk::BytesN<32>,
     pub change_type: TierChangeType,
     pub status: TierChangeStatus,
     pub requested_at: u64,
@@ -72,9 +77,12 @@ pub struct TierChangeRequest {
 #[contracttype]
 #[derive(Clone)]
 pub struct TierPromotion {
-    pub tier: TierLevel,
+    pub code: String,
+    pub tier_id: soroban_sdk::BytesN<32>,
     pub discount_bps: u32,
+    pub valid_from: u64,
     pub valid_until: u64,
+    pub is_active: bool,
 }
 
 #[contracttype]
