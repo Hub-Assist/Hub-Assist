@@ -35,7 +35,7 @@ pub struct TierManagementModule;
 impl TierManagementModule {
     // ── Admin setup ────────────────────────────────────────────────────
 
-    pub fn set_admin(env: Env, admin: Address) {
+    pub fn set_tier_admin(env: Env, admin: Address) {
         admin.require_auth();
         env.storage().instance().set(&TierKey::Admin, &admin);
     }

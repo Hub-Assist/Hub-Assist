@@ -1,7 +1,7 @@
 use soroban_sdk::{contracttype, Address, Vec};
 
 #[contracttype]
-#[derive(Clone, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub enum UserRole {
     Guest  = 0,
     Member = 1,

@@ -11,5 +11,6 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+soroban-sdk = { version = "21.0.0" }
+soroban-sdk-testutils = { version = "21.0.0", package = "soroban-sdk", features = ["testutils"] }
 common_types = { path = "common_types" }
