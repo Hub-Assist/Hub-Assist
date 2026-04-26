@@ -10,9 +10,7 @@ interface CountDownTimerProps {
 export function CountDownTimer({ seconds, onExpire }: Readonly<CountDownTimerProps>) {
   const [remaining, setRemaining] = useState(seconds);
 
-  useEffect(() => {
-    setRemaining(seconds);
-  }, [seconds]);
+  useEffect(() => { setRemaining(seconds); }, [seconds]);
 
   useEffect(() => {
     if (remaining <= 0) { onExpire(); return; }
