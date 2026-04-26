@@ -74,4 +74,67 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
+
+  // Bookings
+  getBookings: (token: string, status?: string) =>
+    request<Booking[]>(`/bookings${status ? `?status=${status}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  getBooking: (token: string, id: string) =>
+    request<Booking>(`/bookings/${id}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  confirmBooking: (token: string, id: string) =>
+    request<Booking>(`/bookings/${id}/confirm`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  cancelBooking: (token: string, id: string) =>
+    request<Booking>(`/bookings/${id}/cancel`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  // Attendance
+  getAttendance: (token: string, date?: string) =>
+    request<AttendanceRecord[]>(`/attendance${date ? `?date=${date}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  clockIn: (token: string) =>
+    request<AttendanceRecord>('/attendance/clock-in', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
+
+  clockOut: (token: string) =>
+    request<AttendanceRecord>('/attendance/clock-out', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    }),
 };
+
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+
+export interface Booking {
+  id: string;
+  workspaceName: string;
+  memberName?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  amount: number;
+  status: BookingStatus;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  userId?: string;
+  memberName?: string;
+  clockIn: string;
+  clockOut?: string;
+  date: string;
+}
