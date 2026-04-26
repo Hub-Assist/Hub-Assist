@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { BiometricLoginView } from "@/components/auth/BiometricLoginView";
 
-export default function LoginPage() {
+function LoginContent() {
   const reset = useSearchParams().get("reset");
 
   const handleBiometric = () => {
@@ -35,5 +36,13 @@ export default function LoginPage() {
 
       <BiometricLoginView onTrigger={handleBiometric} />
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

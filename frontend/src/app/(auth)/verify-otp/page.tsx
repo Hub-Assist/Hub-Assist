@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, KeyboardEvent, ClipboardEvent } from "react";
+import { Suspense, useRef, useState, KeyboardEvent, ClipboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +15,7 @@ function maskEmail(email: string): string {
 const inputClass =
   "h-12 w-12 rounded-xl border border-[#D7CFC6] bg-[#EDE2D6] text-center text-lg font-semibold text-[#1A1A1A] focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] caret-transparent";
 
-export default function VerifyOtpPage() {
+function VerifyOtpContent() {
   const router = useRouter();
   const params = useSearchParams();
   const email = params.get("email") ?? "";
@@ -110,5 +110,13 @@ export default function VerifyOtpPage() {
 
       <ResendButton email={email} />
     </div>
+  );
+}
+
+export default function VerifyOtpPage() {
+  return (
+    <Suspense>
+      <VerifyOtpContent />
+    </Suspense>
   );
 }
