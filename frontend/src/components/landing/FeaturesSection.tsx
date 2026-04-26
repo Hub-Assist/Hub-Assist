@@ -16,7 +16,7 @@ const tones: Record<FeatureItem["tone"], string> = {
 
 export function FeaturesSection({ title, features }: Readonly<FeaturesSectionProps>) {
   return (
-    <LandingSection id="features">
+    <LandingSection id="features" className="min-h-[420px]">
       <div className="space-y-6">
         <SectionHeading eyebrow="FEATURES" title={title} />
         <div className="grid gap-4 lg:grid-cols-3">

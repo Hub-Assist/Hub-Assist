@@ -13,7 +13,7 @@ export function NewsletterSection({ title, description }: Readonly<NewsletterSec
   const { email, onChange, onSubmit } = useNewsletterForm();
 
   return (
-    <LandingSection id="newsletter" backgroundClassName="bg-[#C4CFDE]">
+    <LandingSection id="newsletter" backgroundClassName="bg-[#C4CFDE]" className="min-h-[420px]">
       <div className="space-y-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-[#6B6B6B]">NEWSLETTER</p>
         <h2 className="text-3xl font-bold leading-tight text-[#1A1A1A] sm:text-4xl">{title}</h2>

@@ -10,7 +10,7 @@ interface HowItWorksSectionProps {
 
 export function HowItWorksSection({ title, steps }: Readonly<HowItWorksSectionProps>) {
   return (
-    <LandingSection id="how-it-works" backgroundClassName="bg-[#C3DED8]">
+    <LandingSection id="how-it-works" backgroundClassName="bg-[#C3DED8]" className="min-h-[420px]">
       <div className="space-y-6">
         <SectionHeading eyebrow="HOW IT WORKS" title={title} />
         <div className="grid gap-4 lg:grid-cols-3">
