@@ -5,8 +5,11 @@ members = [
     "contracts/membership_token",
     "contracts/access_control",
     "contracts/payment_escrow",
+    "contracts/common_types",
+    "contracts/manage_hub",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+common_types = { path = "contracts/common_types" }
