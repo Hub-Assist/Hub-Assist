@@ -27,16 +27,20 @@ export default function VerifyOtpPage() {
 
   const focus = (i: number) => refs.current[i]?.focus();
 
-  const handleChange = (i: number, val: string) => {
-    const digit = val.replace(/\D/g, "").slice(-1);
-    const next = [...digits];
-    next[i] = digit;
-    setDigits(next);
-    if (digit && i < 5) focus(i + 1);
-  };
-
   const handleKeyDown = (i: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !digits[i] && i > 0) focus(i - 1);
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = [...digits];
+      if (next[i]) { next[i] = ""; setDigits(next); }
+      else if (i > 0) { next[i - 1] = ""; setDigits(next); focus(i - 1); }
+      return;
+    }
+    if (!/^\d$/.test(e.key)) return;
+    e.preventDefault();
+    const next = [...digits];
+    next[i] = e.key;
+    setDigits(next);
+    if (i < 5) focus(i + 1);
   };
 
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
@@ -92,7 +96,7 @@ export default function VerifyOtpPage() {
               autoFocus={i === 0}
               aria-label={`Digit ${i + 1}`}
               className={inputClass}
-              onChange={(e) => handleChange(i, e.target.value)}
+              onChange={() => {}}
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
             />
