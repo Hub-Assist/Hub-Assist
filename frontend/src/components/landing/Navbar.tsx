@@ -23,7 +23,12 @@ export function Navbar({ brand, links }: Readonly<NavbarProps>) {
         ))}
       </div>
 
-      <Button>Book a demo</Button>
+      <div className="flex items-center gap-3">
+        <a href="/login" className="text-sm font-semibold text-[#3D3D3D] transition-colors hover:text-[#1A1A1A]">
+          Sign in
+        </a>
+        <Button>Book a demo</Button>
+      </div>
     </nav>
   );
 }
