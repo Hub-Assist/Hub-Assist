@@ -2,8 +2,10 @@
 members = [
     "contracts/hubassist_hub",
     "contracts/workspace_booking",
+    "contracts/common_types",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 soroban-sdk = { version = "21.0.0", features = ["testutils"] }
+common_types = { path = "contracts/common_types" }
