@@ -1,29 +1,39 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { WorkspacesModule } from './workspaces/workspaces.module';
-import { BookingsModule } from './bookings/bookings.module';
-import { DashboardModule } from './dashboard/dashboard.module';
-import { NewsletterModule } from './newsletter/newsletter.module';
+import { ContactModule } from './contact/contact.module';
+import appConfig from './config/app.config';
+import databaseConfig from './config/database.config';
+import { validationSchema } from './config/validation.schema';
+import { HttpLoggerMiddleware } from './common/middlewares/http-logger.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      url: process.env.DATABASE_URL,
-      autoLoadEntities: true,
-      synchronize: process.env.NODE_ENV !== 'production',
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [appConfig, databaseConfig],
+      validationSchema,
+    }),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const config = configService.get('database');
+        return config || {};
+      },
     }),
     AuthModule,
     UsersModule,
-    WorkspacesModule,
-    BookingsModule,
-    DashboardModule,
-    NewsletterModule,
+    ContactModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(HttpLoggerMiddleware)
+      .exclude('health', 'health/live', 'health/ready')
+      .forRoutes('*');
+  }
+}
