@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #c5beb6;
+  --card: #f3ebe2;
+  --mint: #c3ded8;
+  --lavender: #c4cfde;
+  --sage: #d5dcba;
+  --text: #1a1a1a;
+  --text-secondary: #3d3d3d;
+  --text-tertiary: #6b6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: "Funnel Sans", "Inter", system-ui, -apple-system, sans-serif;
+}
