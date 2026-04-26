@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Hubassist Landing",
+  title: "HubAssist — Workspace Management",
   description:
     "HubAssist is a full-stack monorepo platform for coworking and workspace management with web, API, and Soroban smart contracts.",
 };
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen py-3">{children}</body>
+      <body className="min-h-screen py-3">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
