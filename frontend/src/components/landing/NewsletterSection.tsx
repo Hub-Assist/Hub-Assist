@@ -35,7 +35,7 @@ export function NewsletterSection({ title, description }: Readonly<NewsletterSec
               Subscribe
             </Button>
           </form>
-          <div className="h-48 w-full rounded-2xl bg-[url('https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80')] bg-cover bg-center sm:h-auto sm:min-h-[160px] sm:w-1/2 sm:self-stretch" />
+          <div className="h-48 w-full rounded-2xl bg-[url('https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80')] bg-cover bg-center sm:h-auto sm:min-h-[280px] sm:w-1/2 sm:self-stretch" />
         </div>
       </div>
     </LandingSection>
