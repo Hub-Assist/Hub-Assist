@@ -67,10 +67,10 @@ export function DashboardSidebar({ onClose }: Readonly<Props>) {
       {/* User + Logout */}
       <div className="border-t border-[#D7CFC6] px-4 py-4 flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#D5DCBA] text-sm font-semibold text-[#1A1A1A]">
-          {user?.name?.[0]?.toUpperCase() ?? "?"}
+          {user?.firstname?.[0]?.toUpperCase() ?? "?"}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-medium text-[#1A1A1A]">{user?.name ?? "User"}</p>
+          <p className="truncate text-sm font-medium text-[#1A1A1A]">{user?.firstname ?? "User"}</p>
           <p className="truncate text-xs capitalize text-[#6B6B6B]">{user?.role ?? "member"}</p>
         </div>
         <button

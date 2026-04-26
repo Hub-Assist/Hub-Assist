@@ -1,15 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store/authStore";
+import { get } from "@/lib/apiClient";
 
 export function AdminOverview() {
-  const token = useAuthStore((s) => s.token) ?? "";
   const { data, isPending } = useQuery({
     queryKey: ["dashboard-stats"],
-    queryFn: () => api.getDashboardStats(token),
-    enabled: !!token,
+    queryFn: () => get<{ pendingBookings?: number; revenueThisMonth?: number }>("/dashboard/stats"),
   });
 
   const stats = [

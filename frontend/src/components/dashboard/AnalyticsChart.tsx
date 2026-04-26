@@ -2,15 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store/authStore";
+import { get } from "@/lib/apiClient";
 
 export function AnalyticsChart() {
-  const token = useAuthStore((s) => s.token) ?? "";
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-growth"],
-    queryFn: () => api.getDashboardGrowth(token),
-    enabled: !!token,
+    queryFn: () => get<Array<{ date: string; members: number }>>("/dashboard/growth"),
   });
 
   if (isPending) return <div className="h-48 animate-pulse rounded-2xl bg-[#EDE2D6]" />;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { post } from "@/lib/apiClient";
 import { EmailResetPassword } from "@/components/auth/EmailResetPassword";
 
 export function ForgotPasswordForm() {
@@ -13,7 +13,7 @@ export function ForgotPasswordForm() {
     setIsPending(true);
     setError(null);
     try {
-      await api.forgotPassword(email);
+      await post('/auth/forgot-password', { email });
       setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");

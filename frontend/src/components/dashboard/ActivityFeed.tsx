@@ -1,8 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store/authStore";
+import { get } from "@/lib/apiClient";
 
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -13,11 +12,9 @@ function timeAgo(iso: string): string {
 }
 
 export function ActivityFeed() {
-  const token = useAuthStore((s) => s.token) ?? "";
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-activity"],
-    queryFn: () => api.getDashboardActivity(token),
-    enabled: !!token,
+    queryFn: () => get<Array<{ id: string; icon: string; description: string; timestamp: string }>>("/dashboard/activity"),
   });
 
   if (isPending) return (
