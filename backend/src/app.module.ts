@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ContactModule } from './contact/contact.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { StellarModule } from './stellar/stellar.module';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import { validationSchema } from './config/validation.schema';
@@ -31,6 +33,8 @@ import { HttpLoggerMiddleware } from './common/middlewares/http-logger.middlewar
     UsersModule,
     ContactModule,
     AttendanceModule,
+    BookingsModule,
+    StellarModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -15,6 +15,11 @@ export class CreateBookingDto {
 
   @IsNumber()
   totalAmount: number;
+
+  @IsOptional()
+  @SanitizeString()
+  @IsString()
+  stellarTxHash?: string;
 }
 
 export class UpdateBookingDto {

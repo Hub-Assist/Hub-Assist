@@ -18,6 +18,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.0",
     "@simplewebauthn/server": "^13.3.0",
+    "@stellar/stellar-sdk": "^15.0.1",
     "@types/multer": "^2.1.0",
     "@types/nodemailer": "^8.0.0",
     "bcrypt": "^5.1.0",

@@ -21,42 +21,42 @@ export enum BookingStatus {
 @Entity('bookings')
 export class Booking {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
   @ForeignKey(() => Workspace)
-  workspaceId: string;
+  workspaceId!: string;
 
   @ManyToOne(() => Workspace)
   @JoinColumn({ name: 'workspaceId' })
-  workspace: Workspace;
+  workspace!: Workspace;
 
   @Column()
   @ForeignKey(() => User)
-  userId: string;
+  userId!: string;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @Column({ type: 'timestamp' })
-  startTime: Date;
+  startTime!: Date;
 
   @Column({ type: 'timestamp' })
-  endTime: Date;
+  endTime!: Date;
 
   @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.PENDING })
-  status: BookingStatus;
+  status!: BookingStatus;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  totalAmount: number;
+  totalAmount!: number;
 
-  @Column({ nullable: true })
-  stellarTxHash: string;
+  @Column({ nullable: true, default: null })
+  stellarTxHash!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

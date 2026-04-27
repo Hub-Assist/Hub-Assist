@@ -16,6 +16,7 @@ export const validationSchema = Joi.object({
   CLOUDINARY_API_KEY: Joi.string().optional(),
   CLOUDINARY_API_SECRET: Joi.string().optional(),
   STELLAR_NETWORK: Joi.string().valid('testnet', 'mainnet').default('testnet'),
-  CONTRACT_ID: Joi.string().optional(),
+  WORKSPACE_BOOKING_CONTRACT_ID: Joi.string().optional(),
+  MEMBERSHIP_TOKEN_CONTRACT_ID: Joi.string().optional(),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
 });

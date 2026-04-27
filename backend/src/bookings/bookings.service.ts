@@ -3,10 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Booking, BookingStatus } from './booking.entity';
 import { CreateBookingDto, UpdateBookingDto } from './bookings.dto';
+import { StellarService } from '../stellar/stellar.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(@InjectRepository(Booking) private repo: Repository<Booking>) {}
+  constructor(
+    @InjectRepository(Booking) private repo: Repository<Booking>,
+    private stellarService: StellarService,
+  ) {}
 
   async create(userId: string, dto: CreateBookingDto) {
     const startTime = new Date(dto.startTime);
@@ -71,6 +75,25 @@ export class BookingsService {
 
   async confirm(id: string) {
     const booking = await this.findById(id);
+
+    if (booking.status !== BookingStatus.PENDING) {
+      throw new BadRequestException('Only pending bookings can be confirmed');
+    }
+
+    // Verify on-chain payment
+    if (!booking.stellarTxHash) {
+      throw new BadRequestException('No transaction hash provided for payment verification');
+    }
+
+    try {
+      const txVerification = await this.stellarService.verifyTransaction(booking.stellarTxHash);
+      if (txVerification.status !== 'SUCCESS') {
+        throw new BadRequestException('Transaction verification failed');
+      }
+    } catch (error) {
+      throw new BadRequestException(`Payment verification failed: ${(error as Error).message}`);
+    }
+
     booking.status = BookingStatus.CONFIRMED;
     return this.repo.save(booking);
   }

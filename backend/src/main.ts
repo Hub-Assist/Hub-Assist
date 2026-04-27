@@ -1,9 +1,11 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const compression = require('compression');
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './utils/error';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);

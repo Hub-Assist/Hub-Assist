@@ -7,4 +7,7 @@ export default registerAs('app', () => ({
   refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET,
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  stellarNetwork: process.env.STELLAR_NETWORK || 'testnet',
+  workspaceBookingContractId: process.env.WORKSPACE_BOOKING_CONTRACT_ID,
+  membershipTokenContractId: process.env.MEMBERSHIP_TOKEN_CONTRACT_ID,
 }));

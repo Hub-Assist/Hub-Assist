@@ -1,5 +1,6 @@
 #![no_std]
 
+mod allowance;
 mod attendance_log;
 mod batch;
 mod membership_token;
@@ -38,3 +39,4 @@ pub use pause_errors::PauseError;
 pub use guards::{require_admin, require_not_paused, require_usdc_set, validate_expiry_date, validate_payment, GuardError};
 pub use fractionalization::{FractionalizationModule, FractionalizationError};
 pub use royalty::RoyaltyModule;
+pub use allowance::{AllowanceModule, AllowanceModuleClient, AllowanceInfo};
