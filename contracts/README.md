@@ -1,301 +1,260 @@
 # HubAssist Smart Contracts
 
-This directory contains all Soroban smart contracts for the HubAssist platform, deployed on the Stellar blockchain.
-
-## Contracts Overview
-
-### manage_hub
-**Purpose**: Core hub management contract handling membership tokens, subscriptions, and administrative functions.
-
-**Key Features**:
-- Membership token issuance and management
-- Subscription creation and tracking
-- Admin controls and pause functionality
-- Token transfer with royalty calculations
-- Upgrade and migration capabilities
-
-**Build**:
-```bash
-cd manage_hub
-stellar contract build
-```
-
-**Test**:
-```bash
-cd manage_hub
-cargo test
-```
-
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/manage_hub.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias manage_hub
-```
+Soroban smart contracts for the HubAssist platform, deployed on the Stellar blockchain.
 
 ---
 
-### workspace_booking
-**Purpose**: Handles workspace booking, seat reservations, and payment escrow.
+## Architecture
 
-**Key Features**:
-- Booking creation and cancellation
-- Seat availability tracking
-- Payment escrow management
-- Booking history and analytics
-
-**Build**:
-```bash
-cd workspace_booking
-stellar contract build
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        HubAssist Platform                       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ invokes
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+          ▼                  ▼                  ▼
+  ┌───────────────┐  ┌───────────────┐  ┌───────────────────┐
+  │ access_control│  │  manage_hub   │  │ workspace_booking │
+  │               │  │               │  │                   │
+  │ Role-based    │  │ Membership    │  │ Booking creation  │
+  │ permissions   │  │ tokens,       │  │ & cancellation    │
+  │ & multi-sig   │  │ subscriptions,│  │                   │
+  │ proposals     │  │ staking,      │  │        │          │
+  └───────────────┘  │ attendance    │  │        │ escrow   │
+          │          └───────────────┘  │        ▼          │
+          │ shared types                │ ┌──────────────┐  │
+          ▼                             │ │payment_escrow│  │
+  ┌───────────────┐                     │ │              │  │
+  │ common_types  │◄────────────────────┘ │ Hold, release│  │
+  │               │                       │ refund, and  │  │
+  │ Shared enums, │                       │ dispute funds│  │
+  │ structs, and  │                       └──────────────┘  │
+  │ error types   │                                         │
+  └───────────────┘                                         │
+          ▲                                                  │
+          │ shared types                                     │
+  ┌───────────────┐                                         │
+  │membership_token│◄────────────────────────────────────────┘
+  │                │
+  │ Issue, renew,  │
+  │ revoke, and    │
+  │ transfer SRC-20│
+  │ membership NFTs│
+  └────────────────┘
 ```
 
-**Test**:
-```bash
-cd workspace_booking
-cargo test
-```
+### Deployment order
 
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/workspace_booking.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias workspace_booking
-```
+`common_types` (library, no deploy) → `access_control` → `manage_hub` → `workspace_booking` → `payment_escrow` → `membership_token`
 
 ---
-
-### membership_token
-**Purpose**: SRC-20 compliant membership token contract with expiry and tier support.
-
-**Key Features**:
-- Token minting and burning
-- Tier-based membership levels
-- Expiry date enforcement
-- Transfer restrictions
-
-**Build**:
-```bash
-cd membership_token
-stellar contract build
-```
-
-**Test**:
-```bash
-cd membership_token
-cargo test
-```
-
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/membership_token.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias membership_token
-```
-
----
-
-### payment_escrow
-**Purpose**: Manages payment escrow for bookings and transactions.
-
-**Key Features**:
-- Escrow account creation
-- Payment holding and release
-- Dispute resolution
-- Multi-signature support
-
-**Build**:
-```bash
-cd payment_escrow
-stellar contract build
-```
-
-**Test**:
-```bash
-cd payment_escrow
-cargo test
-```
-
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/payment_escrow.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias payment_escrow
-```
-
----
-
-### access_control
-**Purpose**: On-chain role-based access control for contract operations.
-
-**Key Features**:
-- Role assignment and revocation
-- Permission checking
-- Admin delegation
-- Audit logging
-
-**Build**:
-```bash
-cd access_control
-stellar contract build
-```
-
-**Test**:
-```bash
-cd access_control
-cargo test
-```
-
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/access_control.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias access_control
-```
-
----
-
-### common_types
-**Purpose**: Shared types and utilities used across all contracts.
-
-**Key Features**:
-- Common error types
-- Shared data structures
-- Utility functions
-- Type definitions
-
-**Note**: This is a library crate, not deployable as a standalone contract.
-
----
-
-### hubassist_hub
-**Purpose**: Central hub registry and member management.
-
-**Key Features**:
-- Hub registration and configuration
-- Member directory
-- Hub statistics and analytics
-- Multi-hub support
-
-**Build**:
-```bash
-cd hubassist_hub
-stellar contract build
-```
-
-**Test**:
-```bash
-cd hubassist_hub
-cargo test
-```
-
-**Deploy**:
-```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/hubassist_hub.wasm \
-  --source-account <your-account> \
-  --network testnet \
-  --alias hubassist_hub
-```
-
----
-
-## Building All Contracts
-
-To build all contracts at once:
-
-```bash
-cd contracts
-cargo build --release
-```
-
-This will compile all workspace members and output WASM binaries to `target/wasm32v1-none/release/`.
-
-## Running Tests
-
-To run tests for all contracts:
-
-```bash
-cd contracts
-cargo test
-```
-
-To run tests for a specific contract:
-
-```bash
-cd contracts/<contract-name>
-cargo test
-```
 
 ## Deployment
 
 ### Prerequisites
-- Stellar CLI installed and configured
-- Funded Stellar account
-- Network selection (testnet or mainnet)
 
-### Testnet Deployment
+- Rust toolchain with `wasm32v1-none` target
+- Stellar CLI ≥ 23.x
+- A funded Stellar account on testnet
+
 ```bash
+rustup target add wasm32v1-none
+cargo install --locked stellar-cli@23.1.3
+stellar keys generate --global alice --network testnet --fund
+```
+
+### Automated deployment
+
+```bash
+cd contracts
+./scripts/deploy.sh alice testnet
+```
+
+This builds all contracts, deploys them in dependency order, and writes contract IDs to `contracts/.env.contracts`.
+
+### Initialize contracts
+
+```bash
+./scripts/initialize.sh alice <admin-address> <payment-token-address> testnet
+```
+
+### Manual deployment (single contract)
+
+```bash
+cd contracts
+stellar contract build          # builds all workspace members
+
 stellar contract deploy \
-  --wasm target/wasm32v1-none/release/<contract-name>.wasm \
-  --source-account <your-account> \
+  --wasm target/wasm32v1-none/release/<contract>.wasm \
+  --source-account alice \
   --network testnet \
-  --alias <contract-name>
+  --alias <contract>
 ```
 
-### Mainnet Deployment
+### Run tests
+
 ```bash
-stellar contract deploy \
-  --wasm target/wasm32v1-none/release/<contract-name>.wasm \
-  --source-account <your-account> \
-  --network public \
-  --alias <contract-name>
+cd contracts
+cargo test
 ```
 
-## Development
+---
 
-### Adding a New Contract
+## Function Reference
 
-1. Create a new directory: `mkdir contracts/new_contract`
-2. Initialize Cargo: `cargo init --lib`
-3. Update `contracts/Cargo.toml` to add the new contract to workspace members
-4. Add dependencies to the new contract's `Cargo.toml`
-5. Implement contract logic in `src/lib.rs`
-6. Add tests in `src/test.rs`
+### `access_control`
 
-### Code Style
+Manages on-chain roles and multi-sig governance proposals.
 
-- Follow Rust conventions and best practices
-- Use meaningful variable and function names
-- Add documentation comments for public APIs
-- Keep functions focused and testable
+| Function | Parameters | Returns | Description |
+|---|---|---|---|
+| `initialize` | `admin: Address, multisig_config: MultiSigConfig` | — | One-time setup. Sets admin and multi-sig thresholds. |
+| `set_role` | `admin: Address, user: Address, role: UserRole` | `Result<()>` | Assign a role to a user. Admin only. |
+| `get_role` | `user: Address` | `Result<MembershipInfo>` | Fetch role info for a user. |
+| `check_access` | `user: Address, required_role: UserRole` | `bool` | Returns true if user meets or exceeds the required role. |
+| `require_access` | `user: Address, required_role: UserRole` | `Result<()>` | Panics if user lacks the required role. |
+| `is_admin` | `user: Address` | `bool` | Returns true if user is the admin. |
+| `remove_role` | `admin: Address, user: Address` | `Result<()>` | Remove a user's role. Admin only. |
+| `update_config` | `admin: Address, config: AccessControlConfig` | `Result<()>` | Update multi-sig config. Admin only. |
+| `pause` | `admin: Address` | `Result<()>` | Pause the contract. Admin only. |
+| `unpause` | `admin: Address` | `Result<()>` | Unpause the contract. Admin only. |
+| `create_proposal` | `proposer: Address, action: ProposalAction` | `Result<u64>` | Create a governance proposal. Returns proposal ID. |
+| `approve_proposal` | `approver: Address, proposal_id: u64` | `Result<()>` | Approve a pending proposal. |
+| `execute_proposal` | `executor: Address, proposal_id: u64` | `Result<()>` | Execute an approved proposal after time-lock. |
 
-## Troubleshooting
+**Types**
 
-### Build Errors
-- Ensure Rust toolchain is up to date: `rustup update`
-- Check that `wasm32v1-none` target is installed: `rustup target add wasm32v1-none`
-- Verify Soroban SDK version matches across all contracts
+```
+MultiSigConfig { threshold: u32, critical_threshold: u32, time_lock_duration: u64 }
+UserRole: Guest(0) | Member(1) | Staff(2) | Admin(3)
+ProposalAction: SetRole(Address, UserRole) | RemoveRole(Address) | SetAdmin(Address) | ScheduleUpgrade(Address)
+```
 
-### Test Failures
-- Run tests with verbose output: `cargo test -- --nocapture`
-- Check contract storage initialization in tests
-- Verify mock data and test fixtures
+---
 
-### Deployment Issues
-- Confirm account has sufficient XLM for deployment
-- Verify network connectivity
-- Check contract WASM size (must be under 64KB)
+### `manage_hub`
+
+Core hub management: membership tokens, subscriptions, staking, attendance, and upgrades. Library-style modules — no standalone `initialize`.
+
+| Module | Key Functions |
+|---|---|
+| `MembershipTokenContract` | `issue`, `transfer`, `batch_issue`, `batch_transfer` |
+| `SubscriptionModule` | `create_subscription`, `cancel_subscription`, `get_subscription` |
+| `StakingModule` | `stake`, `unstake`, `get_stake_info`, `claim_rewards` |
+| `AttendanceLogModule` | `log_attendance`, `get_summary`, `get_peak_hours` |
+| `TierManagementModule` | `create_tier`, `update_tier`, `get_tier` |
+| `RewardsModule` | `distribute_rewards`, `claim_rewards` |
+| `BatchModule` | `batch_update` |
+| `UpgradeModule` | `upgrade` |
+| `MigrationModule` | `migrate` |
+
+---
+
+### `workspace_booking`
+
+Manages workspace registration and booking lifecycle.
+
+| Function | Parameters | Returns | Description |
+|---|---|---|---|
+| `initialize` | `admin: Address, payment_token: Address` | — | One-time setup. |
+| `register_workspace` | `caller: Address, name: String, workspace_type: WorkspaceType, capacity: u32, price_per_hour: i128` | `u32` | Register a new workspace. Admin only. Returns workspace ID. |
+| `update_workspace_availability` | `caller: Address, workspace_id: u32, availability: WorkspaceAvailability` | `Result<()>` | Update availability status. Admin only. |
+| `book` | `member: Address, workspace_id: u32, start_time: u64, end_time: u64, amount: i128, stellar_tx_hash: BytesN<32>` | `Result<u64>` | Create a booking. Validates time range, availability, payment, and overlaps. Returns booking ID. |
+| `confirm` | `admin: Address, booking_id: u64` | `Result<()>` | Confirm a pending booking. Admin only. |
+| `cancel` | `caller: Address, booking_id: u64` | `Result<()>` | Cancel a booking. Callable by the member or admin. |
+| `get_workspace` | `id: u32` | `Result<Workspace>` | Fetch workspace by ID. |
+| `list_workspaces` | — | `Vec<Workspace>` | List all registered workspaces. |
+| `get_booking` | `booking_id: u64` | `Result<Booking>` | Fetch booking by ID. |
+| `list_member_bookings` | `member: Address` | `Vec<Booking>` | List all bookings for a member. |
+
+**Types**
+
+```
+WorkspaceType: Desk | PrivateOffice | MeetingRoom | EventSpace
+WorkspaceAvailability: Available | Unavailable(UnavailabilityReason)
+BookingStatus: Pending | Confirmed | Cancelled
+```
+
+---
+
+### `payment_escrow`
+
+Holds funds in escrow for bookings with dispute support.
+
+| Function | Parameters | Returns | Description |
+|---|---|---|---|
+| `initialize` | `admin: Address, payment_token: Address, default_dispute_window: u64` | — | One-time setup. `default_dispute_window` is in seconds. |
+| `create_escrow` | `depositor: Address, beneficiary: Address, amount: i128, release_time: u64` | `Result<u64>` | Lock funds in escrow. Transfers tokens from depositor. Returns escrow ID. |
+| `release` | `caller: Address, escrow_id: u64` | `Result<()>` | Release funds to beneficiary. Callable by beneficiary or admin after `release_time + dispute_window`. |
+| `refund` | `admin: Address, escrow_id: u64` | `Result<()>` | Refund depositor. Admin only. |
+| `dispute` | `depositor: Address, escrow_id: u64` | `Result<()>` | Mark escrow as disputed. Depositor only, while Active. |
+| `get_escrow` | `id: u64` | `Result<Escrow>` | Fetch escrow by ID. |
+| `list_depositor_escrows` | `depositor: Address` | `Vec<Escrow>` | List all escrows created by depositor. |
+| `list_beneficiary_escrows` | `beneficiary: Address` | `Vec<Escrow>` | List all escrows where address is beneficiary. |
+
+**Types**
+
+```
+EscrowStatus: Active | Released | Refunded | Disputed
+```
+
+---
+
+### `membership_token`
+
+SRC-20-style membership tokens with tiers and expiry.
+
+| Function | Parameters | Returns | Description |
+|---|---|---|---|
+| `initialize` | `admin: Address` | — | One-time setup. |
+| `issue_token` | `admin: Address, owner: Address, tier: u32, expiry_date: u64` | `Result<u64>` | Mint a new token. Returns token ID. |
+| `transfer_token` | `id: u64, new_owner: Address` | `Result<()>` | Transfer token to new owner. Caller must be current owner. Blocked if Revoked, Expired, or GracePeriod. |
+| `renew_token` | `admin: Address, id: u64, new_expiry_date: u64` | `Result<()>` | Extend token expiry. Admin only. |
+| `revoke_token` | `admin: Address, id: u64` | `Result<()>` | Permanently revoke a token. Admin only. |
+| `get_token` | `id: u64` | `Result<MembershipToken>` | Fetch token by ID. |
+| `get_token_status` | `id: u64` | `Result<MembershipStatus>` | Get computed status (accounts for expiry). |
+| `batch_issue_tokens` | `admin: Address, params: Vec<IssueParams>` | `Result<Vec<u64>>` | Mint multiple tokens atomically. |
+| `batch_transfer_tokens` | `params: Vec<TransferParams>` | `Result<()>` | Transfer multiple tokens atomically. |
+
+**Types**
+
+```
+MembershipStatus: Active | Expired | Revoked | GracePeriod
+IssueParams { owner: Address, tier: u32, expiry_date: u64 }
+TransferParams { id: u64, new_owner: Address }
+```
+
+---
+
+### `common_types`
+
+Library crate — not deployable. Provides shared enums, structs, and error types used across contracts.
+
+---
+
+## Event Reference
+
+Events are published via `env.events().publish(topics, data)`.
+
+### `workspace_booking`
+
+| Topic | Data | Emitted by |
+|---|---|---|
+| `("book", workspace_id: u32)` | `booking_id: u64` | `book` |
+| `("confirm",)` | `booking_id: u64` | `confirm` |
+| `("cancel",)` | `booking_id: u64` | `cancel` |
+
+### `membership_token`
+
+| Topic | Data | Emitted by |
+|---|---|---|
+| `("issue", owner: Address)` | `token_id: u64` | `issue_token`, `batch_issue_tokens` |
+| `("transfer", old_owner: Address)` | `(token_id: u64, new_owner: Address)` | `transfer_token`, `batch_transfer_tokens` |
+| `("renew", owner: Address)` | `(token_id: u64, new_expiry_date: u64)` | `renew_token` |
+| `("revoke", owner: Address)` | `token_id: u64` | `revoke_token` |
+
+---
 
 ## Resources
 
