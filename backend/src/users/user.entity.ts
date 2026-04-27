@@ -23,6 +23,22 @@ export class User {
   @Column({ nullable: true })
   stellarPublicKey?: string;
 
-  @CreateDateColumn()
-  createdAt!: Date;
+  // OTP fields for verification and password reset
+  @Column({ nullable: true })
+  otp?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  otpExpiry?: Date;
+
+   @Column({ default: false })
+   isVerified: boolean;
+
+   @Column({ nullable: true })
+   profilePicture?: string;
+
+   @CreateDateColumn()
+   createdAt!: Date;
+
+   @DeleteDateColumn({ nullable: true })
+   deletedAt?: Date;
 }

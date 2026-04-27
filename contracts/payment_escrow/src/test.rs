@@ -263,3 +263,140 @@ fn test_dispute_by_non_depositor_returns_unauthorized() {
     let err = t.client().try_dispute(&beneficiary, &id).unwrap_err().unwrap();
     assert_eq!(err, ContractError::Unauthorized);
 }
+
+// ── multiple escrows for same depositor ───────────────────────────────────────
+
+#[test]
+fn test_multiple_escrows_same_depositor() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 1_000);
+
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &300, &2000).unwrap();
+
+    assert_ne!(id1, id2);
+    assert_eq!(t.token().balance(&t.contract_id), 500);
+}
+
+// ── list_depositor_escrows / list_beneficiary_escrows ─────────────────────────
+
+#[test]
+fn test_list_depositor_escrows_returns_correct_ids() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 1_000);
+
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000).unwrap();
+
+    let escrows = t.client().list_depositor_escrows(&depositor);
+    assert_eq!(escrows.len(), 2);
+    assert_eq!(escrows.get(0).unwrap().id, id1);
+    assert_eq!(escrows.get(1).unwrap().id, id2);
+}
+
+#[test]
+fn test_list_beneficiary_escrows_returns_correct_ids() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 1_000);
+
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &150, &2000).unwrap();
+
+    let escrows = t.client().list_beneficiary_escrows(&beneficiary);
+    assert_eq!(escrows.len(), 2);
+    assert_eq!(escrows.get(0).unwrap().id, id1);
+    assert_eq!(escrows.get(1).unwrap().id, id2);
+}
+
+// ── zero-amount escrow ────────────────────────────────────────────────────────
+
+#[test]
+fn test_zero_amount_escrow_returns_invalid_amount() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+
+    let err = t
+        .client()
+        .try_create_escrow(&depositor, &beneficiary, &0, &2000)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::InvalidAmount);
+}
+
+// ── token balances after release and refund ───────────────────────────────────
+
+#[test]
+fn test_token_balances_correct_after_release() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100).unwrap();
+    assert_eq!(t.token().balance(&depositor), 200);
+    assert_eq!(t.token().balance(&t.contract_id), 300);
+
+    t.advance_past_window();
+    t.client().release(&beneficiary, &id).unwrap();
+
+    assert_eq!(t.token().balance(&beneficiary), 300);
+    assert_eq!(t.token().balance(&t.contract_id), 0);
+}
+
+#[test]
+fn test_token_balances_correct_after_refund() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100).unwrap();
+    assert_eq!(t.token().balance(&depositor), 200);
+
+    t.client().refund(&t.admin, &id).unwrap();
+
+    assert_eq!(t.token().balance(&depositor), 500);
+    assert_eq!(t.token().balance(&t.contract_id), 0);
+}
+
+// ── dispute an already-released escrow ───────────────────────────────────────
+
+#[test]
+fn test_dispute_already_released_escrow_returns_error() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    let id = t.create_default_escrow(&depositor, &beneficiary);
+
+    t.advance_past_window();
+    t.client().release(&beneficiary, &id).unwrap();
+
+    let err = t.client().try_dispute(&depositor, &id).unwrap_err().unwrap();
+    assert_eq!(err, ContractError::EscrowAlreadyReleased);
+}
+
+// ── refund a disputed escrow (admin override) ─────────────────────────────────
+
+#[test]
+fn test_admin_refund_disputed_escrow_succeeds() {
+    let t = TestEnv::new();
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    let id = t.create_default_escrow(&depositor, &beneficiary);
+
+    t.client().dispute(&depositor, &id).unwrap();
+    assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
+
+    let balance_before = t.token().balance(&depositor);
+    t.client().refund(&t.admin, &id).unwrap();
+
+    assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Refunded);
+    assert_eq!(t.token().balance(&depositor), balance_before + 100);
+}

@@ -77,9 +77,4 @@ export class UsersService {
   resetPassword(id: string, newPassword: string) {
     return this.resetPasswordProvider.execute(id, newPassword);
   }
-
-  async update(id: string, data: Partial<User>) {
-    await this.repo.update(id, data);
-    return this.repo.findOne({ where: { id } });
-  }
 }

@@ -27,7 +27,7 @@ export class AuthService {
     return bcrypt.hash(otp, 10);
   }
 
-  private async verifyOtp(otp: string, hash: string): Promise<boolean> {
+  private async verifyOtpHash(otp: string, hash: string): Promise<boolean> {
     return bcrypt.compare(otp, hash);
   }
 
@@ -37,6 +37,12 @@ export class AuthService {
 
   private async hashRefreshToken(token: string): Promise<string> {
     return bcrypt.hash(token, 10);
+  }
+
+  private validatePasswordStrength(password: string): boolean {
+    // At least 8 characters, at least one uppercase, one lowercase, and one digit
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    return regex.test(password);
   }
 
   async register(email: string, password: string) {
@@ -74,15 +80,15 @@ export class AuthService {
       throw new BadRequestException('OTP has expired');
     }
 
-    const isValid = await this.verifyOtp(otp, user.otp);
+    const isValid = await this.verifyOtpHash(otp, user.otp);
     if (!isValid) {
       throw new BadRequestException('Invalid OTP');
     }
 
     await this.usersService.update(user.id, {
       isVerified: true,
-      otp: null,
-      otpExpiry: null,
+      otp: undefined,
+      otpExpiry: undefined,
     });
 
     return { message: 'Email verified successfully' };
@@ -174,69 +180,69 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async forgotPassword(email: string) {
-    const user = await this.usersService.findByEmail(email);
+   async forgotPassword(email: string) {
+     const user = await this.usersService.findByEmail(email);
 
-    // Always return generic success message to prevent enumeration
-    const response = { message: 'If an account exists, a password reset OTP has been sent to the email.' };
+     // Always return generic success message to prevent enumeration
+     const response = { message: 'If an account exists, a password reset OTP has been sent to the email.' };
 
-    if (!user) {
-      return response;
-    }
+     if (!user) {
+       return response;
+     }
 
-    const otp = this.forgotPasswordProvider.generateOtp();
-    const otpHash = await this.forgotPasswordProvider.hashOtp(otp);
-    const otpExpiry = this.forgotPasswordProvider.getOtpExpiry();
+     const otp = this.generateOtp();
+     const otpHash = await this.hashOtp(otp);
+     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await this.usersService.update(user.id, {
-      otp: otpHash,
-      otpExpiry,
-    });
+     await this.usersService.update(user.id, {
+       otp: otpHash,
+       otpExpiry,
+     });
 
-    this.emailService.sendPasswordResetOtp(email, otp).catch(err => {
-      console.error('Failed to send password reset OTP:', err);
-    });
+     this.emailService.sendPasswordResetOtp(email, otp).catch(err => {
+       console.error('Failed to send password reset OTP:', err);
+     });
 
-    return response;
-  }
+     return response;
+   }
 
-  async resetPassword(email: string, otp: string, newPassword: string) {
-    const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
+   async resetPassword(email: string, otp: string, newPassword: string) {
+     const user = await this.usersService.findByEmail(email);
+     if (!user) {
+       throw new BadRequestException('User not found');
+     }
 
-    if (!user.otp || !user.otpExpiry) {
-      throw new BadRequestException('No password reset request found');
-    }
+     if (!user.otp || !user.otpExpiry) {
+       throw new BadRequestException('No password reset request found');
+     }
 
-    if (new Date() > user.otpExpiry) {
-      throw new BadRequestException('OTP has expired');
-    }
+     if (new Date() > user.otpExpiry) {
+       throw new BadRequestException('OTP has expired');
+     }
 
-    const isValid = await this.resetPasswordProvider.verifyOtp(otp, user.otp);
-    if (!isValid) {
-      throw new BadRequestException('Invalid OTP');
-    }
+     const isValid = await bcrypt.compare(otp, user.otp);
+     if (!isValid) {
+       throw new BadRequestException('Invalid OTP');
+     }
 
-    if (!this.resetPasswordProvider.validatePasswordStrength(newPassword)) {
-      throw new BadRequestException(
-        'Password must be at least 8 characters and contain uppercase, lowercase, and numbers',
-      );
-    }
+     if (!this.validatePasswordStrength(newPassword)) {
+       throw new BadRequestException(
+         'Password must be at least 8 characters and contain uppercase, lowercase, and numbers',
+       );
+     }
 
-    const passwordHash = await this.resetPasswordProvider.hashPassword(newPassword);
+     const passwordHash = await bcrypt.hash(newPassword, 10);
 
     await this.usersService.update(user.id, {
       passwordHash,
-      otp: null,
-      otpExpiry: null,
+      otp: undefined,
+      otpExpiry: undefined,
     });
 
-    this.emailService.sendPasswordResetSuccess(email).catch(err => {
-      console.error('Failed to send password reset success email:', err);
-    });
+     this.emailService.sendPasswordResetSuccess(email).catch(err => {
+       console.error('Failed to send password reset success email:', err);
+     });
 
-    return { message: 'Password reset successfully' };
-  }
+     return { message: 'Password reset successfully' };
+   }
 }

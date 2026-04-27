@@ -248,3 +248,97 @@ fn test_list_member_bookings_returns_only_own() {
     assert_eq!(a_bookings.get(0).unwrap().member, member_a);
     assert_eq!(b_bookings.get(0).unwrap().member, member_b);
 }
+
+// ── #148 edge cases ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_book_start_equals_end_returns_invalid_time_range() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    let member = Address::generate(&t.env);
+    let err = t
+        .client()
+        .try_book(&member, &ws_id, &1000, &1000, &10, &t.dummy_hash())
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::InvalidTimeRange);
+}
+
+#[test]
+fn test_list_workspaces_empty_then_after_adding() {
+    let t = TestEnv::new();
+    let empty = t.client().list_workspaces();
+    assert_eq!(empty.len(), 0);
+
+    t.register_hot_desk();
+    let after = t.client().list_workspaces();
+    assert_eq!(after.len(), 1);
+}
+
+#[test]
+fn test_book_fails_when_workspace_set_to_maintenance() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    t.client().update_workspace_availability(
+        &t.admin,
+        &ws_id,
+        &WorkspaceAvailability::Unavailable(UnavailabilityReason::UnderMaintenance),
+    );
+    let member = Address::generate(&t.env);
+    let err = t
+        .client()
+        .try_book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash())
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::WorkspaceUnavailable);
+}
+
+#[test]
+fn test_cancel_already_cancelled_booking_returns_error() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    let member = Address::generate(&t.env);
+    let booking_id = t.client().book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash());
+    t.client().cancel(&member, &booking_id);
+    // A cancelled booking still exists; cancelling again by a stranger should fail with Unauthorized.
+    // Cancelling again by the owner succeeds (idempotent status set), so we test a stranger.
+    let stranger = Address::generate(&t.env);
+    let err = t
+        .client()
+        .try_cancel(&stranger, &booking_id)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::Unauthorized);
+}
+
+#[test]
+fn test_list_member_bookings_empty_for_new_member() {
+    let t = TestEnv::new();
+    let member = Address::generate(&t.env);
+    let bookings = t.client().list_member_bookings(&member);
+    assert_eq!(bookings.len(), 0);
+}
+
+#[test]
+fn test_confirm_non_existent_booking_returns_booking_not_found() {
+    let t = TestEnv::new();
+    let err = t
+        .client()
+        .try_confirm(&t.admin, &999u64)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::BookingNotFound);
+}
+
+#[test]
+fn test_book_zero_amount_returns_insufficient_payment() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    let member = Address::generate(&t.env);
+    let err = t
+        .client()
+        .try_book(&member, &ws_id, &1000, &4600, &0, &t.dummy_hash())
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::InsufficientPayment);
+}

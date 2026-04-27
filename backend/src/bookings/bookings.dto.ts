@@ -5,16 +5,16 @@ import { BookingStatus } from './booking.entity';
 export class CreateBookingDto {
   @SanitizeString()
   @IsString()
-  workspaceId: string;
+  workspaceId!: string;
 
   @IsDateString()
-  startTime: string;
+  startTime!: string;
 
   @IsDateString()
-  endTime: string;
+  endTime!: string;
 
   @IsNumber()
-  totalAmount: number;
+  totalAmount!: number;
 
   @IsOptional()
   @SanitizeString()

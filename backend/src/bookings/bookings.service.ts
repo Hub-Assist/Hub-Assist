@@ -1,22 +1,30 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Booking, BookingStatus } from './booking.entity';
 import { CreateBookingDto, UpdateBookingDto } from './bookings.dto';
 import { StellarService } from '../stellar/stellar.service';
+import { Workspace } from '../workspaces/workspace.entity';
 
 @Injectable()
 export class BookingsService {
   constructor(
     @InjectRepository(Booking) private repo: Repository<Booking>,
+    @InjectRepository(Workspace) private workspaceRepo: Repository<Workspace>,
     private stellarService: StellarService,
   ) {}
 
   async create(userId: string, dto: CreateBookingDto) {
+    // Validate workspace exists
+    const workspace = await this.workspaceRepo.findOne({ where: { id: dto.workspaceId } });
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
 
-    // Validate no overlapping bookings
+    // Validate no overlapping bookings with confirmed status
     const overlapping = await this.repo.findOne({
       where: {
         workspaceId: dto.workspaceId,
@@ -26,9 +34,9 @@ export class BookingsService {
 
     if (overlapping) {
       const overlap =
-        (startTime < new Date(overlapping.endTime) && endTime > new Date(overlapping.startTime));
+        startTime < new Date(overlapping.endTime) && endTime > new Date(overlapping.startTime);
       if (overlap) {
-        throw new BadRequestException('Workspace has overlapping bookings');
+        throw new ConflictException('Workspace has overlapping bookings');
       }
     }
 
@@ -98,8 +106,11 @@ export class BookingsService {
     return this.repo.save(booking);
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, userId: string) {
     const booking = await this.findById(id);
+    if (booking.userId !== userId) {
+      throw new ForbiddenException('Not authorized to cancel this booking');
+    }
     booking.status = BookingStatus.CANCELLED;
     return this.repo.save(booking);
   }

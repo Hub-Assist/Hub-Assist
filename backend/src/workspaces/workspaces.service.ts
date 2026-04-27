@@ -38,7 +38,7 @@ export class WorkspacesService {
 
   async findById(id: string) {
     const workspace = await this.repo.findOne({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null as any },
     });
     if (!workspace) {
       throw new NotFoundException('Workspace not found');

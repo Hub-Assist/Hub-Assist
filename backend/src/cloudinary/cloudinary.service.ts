@@ -16,7 +16,7 @@ export class CloudinaryService {
     return new Promise((resolve, reject) => {
       const upload = cloudinary.uploader.upload_stream(
         { folder: 'hubassist/profile-pictures' },
-        (error, result) => {
+        (error: any, result: any) => {
           if (error) reject(error);
           else resolve(result?.secure_url || '');
         },

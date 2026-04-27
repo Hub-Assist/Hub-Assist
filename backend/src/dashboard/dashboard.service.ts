@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../users/user.entity';
-import { Booking } from '../bookings/booking.entity';
+import { Booking, BookingStatus } from '../bookings/booking.entity';
 import { Workspace } from '../workspaces/workspace.entity';
 
 @Injectable()
@@ -19,11 +19,11 @@ export class DashboardService {
       where: { role: UserRole.MEMBER },
     });
     const activeWorkspaces = await this.workspaceRepo.count({
-      where: { isActive: true, deletedAt: null },
+      where: { isActive: true, deletedAt: null as any },
     });
 
     const confirmedBookings = await this.bookingRepo.count({
-      where: { status: 'Confirmed' },
+      where: { status: BookingStatus.CONFIRMED },
     });
     const deskOccupancy = confirmedBookings > 0 ? (confirmedBookings / activeWorkspaces) * 100 : 0;
 
