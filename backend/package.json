@@ -5,7 +5,21 @@
   "scripts": {
     "start:dev": "nest start --watch",
     "build": "nest build",
-    "start:prod": "node dist/main"
+    "start:prod": "node dist/main",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": ["ts-jest", { "diagnostics": false }]
+    }
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -15,6 +29,7 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^7.1.0",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.0",
     "@simplewebauthn/server": "^13.3.0",
     "@stellar/stellar-sdk": "^15.0.1",
@@ -23,7 +38,10 @@
     "bcrypt": "^5.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "compression": "^1.8.1",
+    "helmet": "^8.1.0",
     "joi": "^18.1.2",
+    "nodemailer": "^8.0.7",
     "passport-jwt": "^4.0.1",
     "pg": "^8.11.0",
     "reflect-metadata": "^0.1.13",
@@ -32,11 +50,16 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
+    "@nestjs/testing": "^11.1.19",
     "@types/bcrypt": "^5.0.0",
+    "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
     "typescript": "^5.0.0"
   }
 }

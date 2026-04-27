@@ -150,6 +150,21 @@ Key variables to configure in `backend/.env`:
 | `JWT_SECRET`     | Secret key for JWT signing           |
 | `STELLAR_NETWORK`| `testnet` or `mainnet`               |
 | `CONTRACT_ID`    | Deployed Soroban contract address    |
+| `FRONTEND_URL`   | Allowed CORS origin (e.g. `https://yourdomain.com`) |
+
+### CORS Configuration
+
+The API uses a strict CORS whitelist. Only the origin set in `FRONTEND_URL` is allowed to make cross-origin requests. Credentials (cookies, Authorization headers) are permitted.
+
+```
+FRONTEND_URL=https://yourdomain.com   # production
+FRONTEND_URL=http://localhost:3000    # local development
+```
+
+Allowed methods: `GET, POST, PUT, PATCH, DELETE, OPTIONS`  
+Allowed headers: `Content-Type, Authorization`
+
+Security headers (HSTS, CSP, X-Frame-Options, etc.) are applied via [helmet](https://helmetjs.github.io/). Response compression is enabled via the `compression` middleware.
 
 ---
 

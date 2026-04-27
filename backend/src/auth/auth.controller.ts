@@ -6,6 +6,7 @@ import {
   ApiBody,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -51,6 +52,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @ApiOperation({ summary: 'Login user' })
   @ApiBody({
     schema: {
@@ -62,17 +64,8 @@ export class AuthController {
       required: ['email', 'password'],
     },
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    schema: {
-      type: 'object',
-      properties: {
-        accessToken: { type: 'string' },
-        refreshToken: { type: 'string' },
-      },
-    },
-  })
+  @ApiResponse({ status: 200, description: 'Login successful', schema: { type: 'object', properties: { accessToken: { type: 'string' }, refreshToken: { type: 'string' } } } })
+  @ApiResponse({ status: 429, description: 'Too Many Requests', headers: { 'Retry-After': { description: 'Seconds until the rate limit resets', schema: { type: 'integer' } } } })
   login(@Body() body: { email: string; password: string }) {
     return this.authService.login(body.email, body.password);
   }
@@ -87,8 +80,10 @@ export class AuthController {
 
   @Post('resend-otp')
   @Public()
+  @Throttle({ default: { ttl: 300_000, limit: 3 } })
   @ApiOperation({ summary: 'Resend OTP' })
   @ApiResponse({ status: 200, description: 'OTP resent successfully' })
+  @ApiResponse({ status: 429, description: 'Too Many Requests', headers: { 'Retry-After': { description: 'Seconds until the rate limit resets', schema: { type: 'integer' } } } })
   resendOtp(@Body() dto: ResendOtpDto) {
     return this.authService.resendOtp(dto.email);
   }
@@ -112,8 +107,10 @@ export class AuthController {
 
   @Post('forgot-password')
   @Public()
+  @Throttle({ default: { ttl: 300_000, limit: 3 } })
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'Password reset OTP sent' })
+  @ApiResponse({ status: 429, description: 'Too Many Requests', headers: { 'Retry-After': { description: 'Seconds until the rate limit resets', schema: { type: 'integer' } } } })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
