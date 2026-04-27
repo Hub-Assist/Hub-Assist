@@ -2,6 +2,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ContactModule } from './contact/contact.module';
@@ -25,11 +26,13 @@ import { HttpLoggerMiddleware } from './common/middlewares/http-logger.middlewar
         return config || {};
       },
     }),
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 10 }]),
     AuthModule,
     UsersModule,
     ContactModule,
     AttendanceModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
