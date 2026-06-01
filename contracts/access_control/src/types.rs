@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 #[contracttype]
 #[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
@@ -26,7 +26,7 @@ pub enum ProposalAction {
     SetRole(Address, UserRole),
     RemoveRole(Address),
     SetAdmin(Address),
-    ScheduleUpgrade(Address), // new wasm hash address placeholder
+    ScheduleUpgrade(BytesN<32>), // new wasm hash
 }
 
 #[contracttype]
