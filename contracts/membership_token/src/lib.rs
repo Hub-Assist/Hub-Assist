@@ -1,22 +1,9 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Vec};
+
+use common_types::ContractError;
 
 const TOKEN_TTL: u32 = 17_280 * 365; // ~1 year in ledgers
-
-#[contracterror]
-#[derive(Clone, Copy, PartialEq, Debug)]
-#[repr(u32)]
-pub enum ContractError {
-    AdminNotSet        = 1,
-    NotAdmin           = 2,
-    TokenNotFound      = 3,
-    TokenAlreadyIssued = 4,
-    InvalidExpiryDate  = 5,
-    TokenRevoked       = 6,
-    GracePeriodBlock   = 7,
-    BatchTooLarge      = 8,
-    ContractPaused     = 9,
-}
 
 #[contracttype]
 #[derive(Clone, PartialEq, Debug)]
@@ -153,6 +140,12 @@ impl MembershipTokenContract {
         Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
+<<<<<<< HEAD
+        
+        // Validate transition: GracePeriod -> Active
+        let current_status = Self::compute_status(&env, &token);
+        Self::validate_transition(&current_status, &MembershipStatus::Active)?;
+=======
         if token.status == MembershipStatus::Revoked {
             return Err(ContractError::TokenRevoked);
         }
@@ -187,10 +180,16 @@ impl MembershipTokenContract {
         env.storage()
             .persistent()
             .set(&DataKey::ExpiryIndex(new_expiry_day), &tokens_on_day);
+>>>>>>> origin/main
         
         token.expiry_date = new_expiry_date;
         token.status = MembershipStatus::Active;
         Self::save_token(&env, &token);
+        
+        env.events().publish(
+            (symbol_short!("status_tr"),),
+            (id, current_status as u32, MembershipStatus::Active as u32),
+        );
         env.events().publish((symbol_short!("renew"), token.owner), (id, new_expiry_date));
         Ok(())
     }
@@ -199,8 +198,18 @@ impl MembershipTokenContract {
         Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
+        
+        // Validate transition: Active -> Revoked
+        let current_status = Self::compute_status(&env, &token);
+        Self::validate_transition(&current_status, &MembershipStatus::Revoked)?;
+        
         token.status = MembershipStatus::Revoked;
         Self::save_token(&env, &token);
+        
+        env.events().publish(
+            (symbol_short!("status_tr"),),
+            (id, current_status as u32, MembershipStatus::Revoked as u32),
+        );
         env.events().publish((symbol_short!("revoke"), token.owner), id);
         Ok(())
     }
@@ -393,6 +402,29 @@ impl MembershipTokenContract {
         
         // Expired if beyond grace period
         MembershipStatus::Expired
+    }
+
+    /// Validate state machine transitions
+    /// Allowed transitions:
+    /// - Active -> Revoked
+    /// - GracePeriod -> Active (via renew)
+    /// - Computed states (Expired, GracePeriod) are read-only
+    fn validate_transition(
+        from: &MembershipStatus,
+        to: &MembershipStatus,
+    ) -> Result<(), ContractError> {
+        match (from, to) {
+            // Active can only transition to Revoked
+            (MembershipStatus::Active, MembershipStatus::Revoked) => Ok(()),
+            // GracePeriod can transition to Active via renewal
+            (MembershipStatus::GracePeriod, MembershipStatus::Active) => Ok(()),
+            // Revoked is terminal
+            (MembershipStatus::Revoked, _) => Err(ContractError::InvalidTransition),
+            // Expired is terminal
+            (MembershipStatus::Expired, _) => Err(ContractError::CannotRenewExpired),
+            // All other transitions are invalid
+            _ => Err(ContractError::InvalidTransition),
+        }
     }
 }
 

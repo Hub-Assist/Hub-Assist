@@ -62,6 +62,7 @@ pub enum BookingStatus {
     Confirmed,
     Cancelled,
     Completed,
+    Waitlisted,
 }
 
 #[contracttype]
@@ -76,4 +77,13 @@ pub struct Booking {
     pub status: BookingStatus,
     pub stellar_tx_hash: BytesN<32>,
     pub escrow_id: u64,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct WaitlistEntry {
+    pub member: Address,
+    pub workspace_id: u32,
+    pub amount: i128,
+    pub added_at: u64,
 }

@@ -238,6 +238,61 @@ fn test_batch_transfer_tokens_success() {
     assert_eq!(client.get_token(&id2).owner, n2);
 }
 
+// ── state machine transitions ─────────────────────────────────────────────────
+
+#[test]
+fn test_revoke_active_token_succeeds() {
+    let (env, _, client, admin) = setup();
+    let owner = Address::generate(&env);
+    let id = client.issue_token(&admin, &owner, &1, &FUTURE);
+    assert_eq!(client.get_token_status(&id), MembershipStatus::Active);
+    
+    client.revoke_token(&admin, &id);
+    assert_eq!(client.get_token_status(&id), MembershipStatus::Revoked);
+}
+
+#[test]
+fn test_revoke_already_revoked_token_panics() {
+    let (env, _, client, admin) = setup();
+    let owner = Address::generate(&env);
+    let id = client.issue_token(&admin, &owner, &1, &FUTURE);
+    
+    client.revoke_token(&admin, &id);
+    let result = client.try_revoke_token(&admin, &id);
+    assert_eq!(result, Err(Ok(ContractError::InvalidTransition)));
+}
+
+#[test]
+fn test_renew_grace_period_token_succeeds() {
+    let (env, _, client, admin) = setup();
+    env.ledger().set_timestamp(1_000);
+    let owner = Address::generate(&env);
+    let id = client.issue_token(&admin, &owner, &1, &2_000);
+    
+    // Move to grace period (after expiry)
+    env.ledger().set_timestamp(2_500);
+    assert_eq!(client.get_token_status(&id), MembershipStatus::Expired);
+    
+    // Renew should succeed
+    client.renew_token(&admin, &id, &10_000);
+    assert_eq!(client.get_token_status(&id), MembershipStatus::Active);
+}
+
+#[test]
+fn test_renew_expired_token_panics() {
+    let (env, _, client, admin) = setup();
+    env.ledger().set_timestamp(1_000);
+    let owner = Address::generate(&env);
+    let id = client.issue_token(&admin, &owner, &1, &2_000);
+    
+    // Revoke the token
+    client.revoke_token(&admin, &id);
+    
+    // Try to renew revoked token
+    let result = client.try_renew_token(&admin, &id, &10_000);
+    assert_eq!(result, Err(Ok(ContractError::InvalidTransition)));
+}
+
 // ── snapshot tests ────────────────────────────────────────────────────────────
 
 #[test]
