@@ -2,6 +2,19 @@ use soroban_sdk::{contracttype, String};
 
 #[contracttype]
 #[derive(Clone, PartialEq)]
+pub enum FeatureFlag {
+    MeetingRoomAccess,
+    PrivateOfficeAccess,
+    HotDeskAccess,
+    EventAccess,
+    NetworkingAccess,
+    AnalyticsAccess,
+    ApiAccess,
+    PrioritySupport,
+}
+
+#[contracttype]
+#[derive(Clone, PartialEq)]
 pub enum MembershipStatus {
     Active,
     Expired,
@@ -162,9 +175,9 @@ pub struct Subscription {
 
 #[contracttype]
 #[derive(Clone)]
-pub struct AttendanceEntry {
-    pub user: soroban_sdk::Address,
-    pub clock_in: u64,
-    pub clock_out: u64,
-    pub prev_hash: soroban_sdk::BytesN<32>,
+pub struct EntitlementResult {
+    pub has_access: bool,
+    pub tier: TierLevel,
+    pub feature: FeatureFlag,
+    pub reason: String,
 }

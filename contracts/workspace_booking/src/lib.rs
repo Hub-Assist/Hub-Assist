@@ -10,7 +10,7 @@ pub(crate) use types::{
     Booking, BookingStatus, UnavailabilityReason, Workspace, WorkspaceAvailability, WorkspaceType, WorkspaceState,
 };
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, vec, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, Address, BytesN, Env, String, Vec};
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
 
@@ -18,7 +18,7 @@ const LEDGER_TTL: u32 = 535_680; // ~1 year
 enum DataKey {
     Admin,
     PaymentToken,
-    MembershipContract,
+    EscrowContract,
     WorkspaceCount,
     Workspace(u32),
     BookingCount,
@@ -32,26 +32,12 @@ pub struct WorkspaceBooking;
 
 #[contractimpl]
 impl WorkspaceBooking {
-    pub fn initialize(env: Env, admin: Address, payment_token: Address, membership_contract: Address) {
+    pub fn initialize(env: Env, admin: Address, payment_token: Address, escrow_contract: Address) {
         admin.require_auth();
         let storage = env.storage().persistent();
         storage.set(&DataKey::Admin, &admin);
         storage.set(&DataKey::PaymentToken, &payment_token);
-        env.storage().instance().set(&DataKey::Paused, &false);
-    }
-
-    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
-        Self::require_admin(&env, &admin);
-        env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((symbol_short!("paused"),), admin);
-        Ok(())
-    }
-
-    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
-        Self::require_admin(&env, &admin);
-        env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((symbol_short!("unpaused"),), admin);
-        Ok(())
+        storage.set(&DataKey::EscrowContract, &escrow_contract);
     }
 
     pub fn register_workspace(
@@ -116,6 +102,21 @@ impl WorkspaceBooking {
         }
 
         let storage = env.storage().persistent();
+        let payment_token: Address = storage
+            .get(&DataKey::PaymentToken)
+            .ok_or(ContractError::PaymentTokenNotSet)?;
+
+        // Pre-flight allowance validation
+        let allowance = soroban_sdk::token::Client::new(&env, &payment_token)
+            .allowance(&member, &env.current_contract_address());
+        if allowance < amount {
+            return Err(ContractError::InsufficientAllowance);
+        }
+
+        env.events().publish(
+            (symbol_short!("allow_chk"),),
+            (member.clone(), amount, allowance),
+        );
 
         let workspace: Workspace = storage
             .get(&DataKey::Workspace(workspace_id))
@@ -194,7 +195,7 @@ impl WorkspaceBooking {
             amount,
             status: BookingStatus::Pending,
             stellar_tx_hash,
-            applied_discount_bps,
+            escrow_id: 0,
         };
 
         storage.set(&DataKey::Booking(id), &booking);
@@ -250,9 +251,31 @@ impl WorkspaceBooking {
             .get(&DataKey::Booking(booking_id))
             .ok_or(ContractError::BookingNotFound)?;
 
+        if booking.status == BookingStatus::Cancelled {
+            return Err(ContractError::AlreadyCancelled);
+        }
+
         let admin: Address = storage.get(&DataKey::Admin).ok_or(ContractError::AdminNotSet)?;
         if caller != booking.member && caller != admin {
             return Err(ContractError::Unauthorized);
+        }
+
+        // If escrow exists, trigger refund via cross-contract call
+        if booking.escrow_id > 0 {
+            let escrow_contract: Address = storage
+                .get(&DataKey::EscrowContract)
+                .ok_or(ContractError::PaymentTokenNotSet)?;
+            
+            // Call escrow contract's refund function
+            env.invoke_contract::<(), ()>(
+                &escrow_contract,
+                &symbol_short!("refund"),
+                vec![
+                    &env,
+                    env.current_contract_address().into_val(&env),
+                    booking.escrow_id.into_val(&env),
+                ],
+            );
         }
 
         booking.status = BookingStatus::Cancelled;
@@ -260,6 +283,29 @@ impl WorkspaceBooking {
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
         env.events().publish((symbol_short!("cancel"),), booking_id);
+        Ok(())
+    }
+
+    pub fn set_booking_escrow(
+        env: Env,
+        caller: Address,
+        booking_id: u64,
+        escrow_id: u64,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+        let storage = env.storage().persistent();
+        let mut booking: Booking = storage
+            .get(&DataKey::Booking(booking_id))
+            .ok_or(ContractError::BookingNotFound)?;
+
+        let admin: Address = storage.get(&DataKey::Admin).ok_or(ContractError::AdminNotSet)?;
+        if caller != admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        booking.escrow_id = escrow_id;
+        storage.set(&DataKey::Booking(booking_id), &booking);
+        storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
         Ok(())
     }
 

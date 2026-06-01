@@ -1,4 +1,4 @@
-use soroban_sdk::{symbol_short, Address, Env, Vec};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, Vec};
 
 use crate::errors::AccessControlError;
 use crate::types::{
@@ -17,7 +17,7 @@ enum DataKey {
     RoleV2 { address: Address, assigned_at: u64 },
     ProposalCount,
     Proposal(u64),
-    StorageVersion,
+    PendingUpgrade,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -282,8 +282,12 @@ pub fn execute_proposal(
             );
             env.events().publish((symbol_short!("set_admin"),), new_admin);
         }
-        ProposalAction::ScheduleUpgrade(hash) => {
-            env.events().publish((symbol_short!("upgrade"),), hash);
+        ProposalAction::ScheduleUpgrade(new_wasm_hash) => {
+            // Store pending upgrade with hash
+            env.storage().instance().set(&DataKey::PendingUpgrade, &new_wasm_hash);
+            // Execute the upgrade
+            env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+            env.events().publish((symbol_short!("upgrade_exec"),), new_wasm_hash);
         }
     }
     env.storage().persistent().remove(&DataKey::Proposal(proposal_id));

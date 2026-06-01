@@ -75,5 +75,5 @@ pub struct Booking {
     pub amount: i128,
     pub status: BookingStatus,
     pub stellar_tx_hash: BytesN<32>,
-    pub applied_discount_bps: u32,
+    pub escrow_id: u64,
 }

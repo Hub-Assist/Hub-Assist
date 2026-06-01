@@ -1,6 +1,6 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, xdr::ToXdr, Address, BytesN, Env, String};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
-use common_types::{Subscription, SubscriptionStatus, SubscriptionTier};
+use common_types::{EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
 
 // ── Pause policy constants ─────────────────────────────────────────────────
 const MAX_PAUSES: u32 = 3;
@@ -12,11 +12,87 @@ const MIN_PAUSE_INTERVAL: u64 = 7 * 24 * 3600; // 7 days in seconds
 pub enum SubKey {
     Subscription(Address),
     Tier(BytesN<32>),
+    TierFeatures(TierLevel),
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────
 #[contract]
 pub struct SubscriptionModule;
+
+pub struct SubscriptionFeatureService;
+
+#[contractimpl]
+impl SubscriptionFeatureService {
+    /// Check if subscriber has access to a feature based on their tier
+    pub fn has_feature(
+        env: Env,
+        subscriber: Address,
+        feature: FeatureFlag,
+    ) -> EntitlementResult {
+        let sub_result = env
+            .storage()
+            .persistent()
+            .get::<_, Subscription>(&SubKey::Subscription(subscriber.clone()));
+
+        if let Some(sub) = sub_result {
+            if sub.status != SubscriptionStatus::Active {
+                return EntitlementResult {
+                    has_access: false,
+                    tier: TierLevel::Basic,
+                    feature: feature.clone(),
+                    reason: String::from_str(&env, "subscription not active"),
+                };
+            }
+
+            let tier: SubscriptionTier = env
+                .storage()
+                .persistent()
+                .get(&SubKey::Tier(sub.tier_id.clone()))
+                .expect("tier not found");
+
+            let features: Vec<FeatureFlag> = env
+                .storage()
+                .persistent()
+                .get(&SubKey::TierFeatures(tier.level.clone()))
+                .unwrap_or(vec![&env]);
+
+            let has_access = features.iter().any(|f| f == feature);
+
+            EntitlementResult {
+                has_access,
+                tier: tier.level,
+                feature,
+                reason: if has_access {
+                    String::from_str(&env, "feature enabled for tier")
+                } else {
+                    String::from_str(&env, "feature not available for tier")
+                },
+            }
+        } else {
+            EntitlementResult {
+                has_access: false,
+                tier: TierLevel::Basic,
+                feature,
+                reason: String::from_str(&env, "no active subscription"),
+            }
+        }
+    }
+
+    /// Set feature flags for a tier (admin only)
+    pub fn set_tier_features(
+        env: Env,
+        admin: Address,
+        tier: TierLevel,
+        features: Vec<FeatureFlag>,
+    ) {
+        admin.require_auth();
+        env.storage()
+            .persistent()
+            .set(&SubKey::TierFeatures(tier), &features);
+        env.events()
+            .publish((symbol_short!("tier_feat"),), (tier, features.len()));
+    }
+}
 
 #[contractimpl]
 impl SubscriptionModule {

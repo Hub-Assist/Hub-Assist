@@ -158,12 +158,16 @@ impl PaymentEscrow {
         Ok(())
     }
 
-    /// Refund depositor. Admin only.
-    pub fn refund(env: Env, admin: Address, escrow_id: u64) -> Result<(), ContractError> {
-        Self::require_not_paused(&env)?;
-        Self::require_admin(&env, &admin)?;
+    /// Refund depositor. Callable by admin or booking contract.
+    pub fn refund(env: Env, caller: Address, escrow_id: u64) -> Result<(), ContractError> {
+        caller.require_auth();
         let s = env.storage().persistent();
         let mut escrow: Escrow = s.get(&DataKey::Escrow(escrow_id)).ok_or(ContractError::EscrowNotFound)?;
+
+        let admin: Address = s.get(&DataKey::Admin).ok_or(ContractError::AdminNotSet)?;
+        if caller != admin && caller != escrow.depositor {
+            return Err(ContractError::Unauthorized);
+        }
 
         if escrow.status == EscrowStatus::Released || escrow.status == EscrowStatus::Refunded {
             return Err(ContractError::EscrowAlreadyReleased);
