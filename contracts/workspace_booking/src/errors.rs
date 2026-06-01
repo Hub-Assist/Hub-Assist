@@ -13,4 +13,6 @@ pub enum ContractError {
     OverlappingBooking = 8,
     InsufficientPayment = 9,
     PaymentTokenNotSet = 10,
+    InsufficientAllowance = 11,
+    AlreadyCancelled = 12,
 }
