@@ -211,11 +211,16 @@ impl WorkspaceBooking {
                 .get(&DataKey::EscrowContract)
                 .ok_or(ContractError::PaymentTokenNotSet)?;
             
-            soroban_sdk::contract_client::Client::new(&env, &escrow_contract)
-                .invoke_contract_fn(
-                    &soroban_sdk::symbol_short!("refund"),
-                    &(env.current_contract_address(), booking.escrow_id),
-                );
+            // Call escrow contract's refund function
+            env.invoke_contract::<(), ()>(
+                &escrow_contract,
+                &symbol_short!("refund"),
+                vec![
+                    &env,
+                    env.current_contract_address().into_val(&env),
+                    booking.escrow_id.into_val(&env),
+                ],
+            );
         }
 
         booking.status = BookingStatus::Cancelled;
