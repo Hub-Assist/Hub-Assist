@@ -5,6 +5,7 @@ import { Workspace, WorkspaceType, WorkspaceAvailability } from './workspace.ent
 import { CreateWorkspaceDto, UpdateWorkspaceDto } from './workspaces.dto';
 import { Booking, BookingStatus } from '../bookings/booking.entity';
 import { EmailService } from '../email/email.service';
+import { CapacityCheckService } from '../bookings/capacity-check.service';
 
 @Injectable()
 export class WorkspacesService {
@@ -12,6 +13,7 @@ export class WorkspacesService {
     @InjectRepository(Workspace) private repo: Repository<Workspace>,
     @InjectRepository(Booking) private bookingRepo: Repository<Booking>,
     private emailService: EmailService,
+    private capacityCheckService: CapacityCheckService,
   ) {}
 
   create(dto: CreateWorkspaceDto) {
@@ -50,6 +52,17 @@ export class WorkspacesService {
       throw new NotFoundException('Workspace not found');
     }
     return workspace;
+  }
+
+  async getHourlyAvailability(id: string, dateStr: string) {
+    await this.findById(id);
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date format. Use YYYY-MM-DD');
+    }
+    return this.repo.manager.transaction(async (manager) => {
+      return this.capacityCheckService.getHourlyAvailability(manager, id, date);
+    });
   }
 
   async update(id: string, dto: UpdateWorkspaceDto) {

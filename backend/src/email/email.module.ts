@@ -4,6 +4,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { EmailService } from './email.service';
 import { EmailPreviewController } from './email.controller';
+import { SmtpCircuitBreaker } from './smtp-circuit-breaker';
 import { join } from 'path';
 
 @Global()
@@ -44,7 +45,7 @@ import { join } from 'path';
     }),
   ],
   controllers: [EmailPreviewController],
-  providers: [EmailService],
-  exports: [EmailService],
+  providers: [EmailService, SmtpCircuitBreaker],
+  exports: [EmailService, SmtpCircuitBreaker],
 })
 export class EmailModule {}

@@ -1,6 +1,7 @@
-import { IsString, IsDateString, IsNumber, IsOptional, IsEnum, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsString, IsDateString, IsNumber, IsOptional, IsEnum, IsUUID, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SanitizeString } from '../common/transformers/sanitize-string.transformer';
+import { AtLeastOneField } from '../common/validators/at-least-one-field.validator';
 import { BookingStatus } from './booking.entity';
 
 export class CreateBookingDto {
@@ -47,6 +48,7 @@ export class CreateBookingDto {
   recurrenceRule?: string;
 }
 
+@AtLeastOneField({ message: 'At least one field must be provided in PATCH request' })
 export class UpdateBookingDto {
   @IsOptional()
   @IsEnum(BookingStatus)

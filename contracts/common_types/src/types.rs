@@ -2,6 +2,19 @@ use soroban_sdk::{contracttype, String};
 
 #[contracttype]
 #[derive(Clone, PartialEq)]
+pub enum FeatureFlag {
+    MeetingRoomAccess,
+    PrivateOfficeAccess,
+    HotDeskAccess,
+    EventAccess,
+    NetworkingAccess,
+    AnalyticsAccess,
+    ApiAccess,
+    PrioritySupport,
+}
+
+#[contracttype]
+#[derive(Clone, PartialEq)]
 pub enum MembershipStatus {
     Active,
     Expired,
@@ -158,4 +171,13 @@ pub struct Subscription {
     pub pause_count: u32,
     pub paused_at: u64,
     pub pause_reason: String,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct EntitlementResult {
+    pub has_access: bool,
+    pub tier: TierLevel,
+    pub feature: FeatureFlag,
+    pub reason: String,
 }

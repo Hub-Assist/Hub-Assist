@@ -12,6 +12,7 @@ const ATTENDANCE_TTL_LEDGERS: u32 = 90 * 17_280; // ~90 days
 pub enum DataKey {
     AttendanceLog(BytesN<32>),
     AttendanceLogsByUser(Address),
+    LatestHash(Address),
 }
 
 // ── Domain types ──────────────────────────────────────────────────────────
@@ -30,6 +31,7 @@ pub struct AttendanceLog {
     pub action: AttendanceAction,
     pub timestamp: u64,
     pub details: Vec<String>,
+    pub prev_hash: BytesN<32>,
 }
 
 #[contracttype]
@@ -82,14 +84,31 @@ impl AttendanceLogModule {
         );
 
         let timestamp = env.ledger().timestamp();
+        
+        // Get previous hash for this user
+        let prev_hash: BytesN<32> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::LatestHash(user_id.clone()))
+            .unwrap_or_else(|| BytesN::from_array(&env, &[0u8; 32]));
+
         let log = AttendanceLog {
             id: id.clone(),
             user_id: user_id.clone(),
             action: action.clone(),
             timestamp,
             details,
+            prev_hash: prev_hash.clone(),
         };
 
+        // Compute hash: sha256(clock_in ++ clock_out ++ user ++ prev_hash)
+        let mut hash_input = Vec::new(&env);
+        hash_input.push_back(timestamp.to_le_bytes().to_vec(&env));
+        hash_input.push_back(user_id.to_xdr(&env));
+        hash_input.push_back(prev_hash.to_vec(&env));
+        
+        let current_hash = env.crypto().sha256(&hash_input.to_vec(&env));
+        
         // Store the log
         env.storage()
             .persistent()
@@ -115,6 +134,14 @@ impl AttendanceLogModule {
                 ATTENDANCE_TTL_LEDGERS,
                 ATTENDANCE_TTL_LEDGERS,
             );
+
+        // Store latest hash for next entry
+        env.storage()
+            .persistent()
+            .set(&DataKey::LatestHash(user_id.clone()), &current_hash);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::LatestHash(user_id.clone()), ATTENDANCE_TTL_LEDGERS, ATTENDANCE_TTL_LEDGERS);
 
         // Emit event
         match action {
@@ -233,5 +260,44 @@ impl AttendanceLogModule {
         }
 
         peak_hours
+    }
+
+    /// Verify hash chain integrity for a user's attendance logs
+    pub fn verify_chain(env: Env, user_id: Address, from_index: u32) -> bool {
+        let logs = Self::get_user_attendance(env.clone(), user_id.clone());
+        
+        if logs.len() == 0 {
+            return true;
+        }
+
+        let start = from_index as usize;
+        if start >= logs.len() {
+            return false;
+        }
+
+        let mut prev_hash = if start == 0 {
+            BytesN::from_array(&env, &[0u8; 32])
+        } else {
+            logs.get(start - 1).unwrap().prev_hash.clone()
+        };
+
+        for i in start..logs.len() {
+            let log = logs.get(i).unwrap();
+            
+            // Verify prev_hash matches
+            if log.prev_hash != prev_hash {
+                return false;
+            }
+
+            // Compute expected hash
+            let mut hash_input = Vec::new(&env);
+            hash_input.push_back(log.timestamp.to_le_bytes().to_vec(&env));
+            hash_input.push_back(user_id.to_xdr(&env));
+            hash_input.push_back(prev_hash.to_vec(&env));
+            
+            prev_hash = env.crypto().sha256(&hash_input.to_vec(&env));
+        }
+
+        true
     }
 }

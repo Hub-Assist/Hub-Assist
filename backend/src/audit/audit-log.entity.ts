@@ -1,8 +1,17 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
+export enum EventCategory {
+  BOOKING = 'BOOKING',
+  USER = 'USER',
+  WORKSPACE = 'WORKSPACE',
+  AUTH = 'AUTH',
+  SYSTEM = 'SYSTEM',
+}
+
 @Entity('audit_logs')
 @Index('idx_audit_logs_resource_created_at', ['resourceType', 'createdAt'])
 @Index('idx_audit_logs_actor_created_at', ['actorId', 'createdAt'])
+@Index('idx_audit_logs_event_category_created_at', ['eventCategory', 'createdAt'])
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -15,6 +24,13 @@ export class AuditLog {
 
   @Column()
   eventType: string;
+
+  @Column({
+    type: 'enum',
+    enum: EventCategory,
+    nullable: true,
+  })
+  eventCategory?: EventCategory;
 
   @Column()
   resourceType: string;

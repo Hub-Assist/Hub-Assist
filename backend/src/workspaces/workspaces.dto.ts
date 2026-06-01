@@ -1,5 +1,6 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsArray, IsBoolean } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsArray, IsBoolean, ValidateIf } from 'class-validator';
 import { SanitizeString } from '../common/transformers/sanitize-string.transformer';
+import { AtLeastOneField } from '../common/validators/at-least-one-field.validator';
 import { WorkspaceType, WorkspaceAvailability } from './workspace.entity';
 
 export class CreateWorkspaceDto {
@@ -29,6 +30,7 @@ export class CreateWorkspaceDto {
   amenities?: string[];
 }
 
+@AtLeastOneField({ message: 'At least one field must be provided in PATCH request' })
 export class UpdateWorkspaceDto {
   @IsOptional()
   @SanitizeString()
@@ -50,6 +52,11 @@ export class UpdateWorkspaceDto {
   @IsOptional()
   @IsEnum(WorkspaceAvailability)
   availability?: WorkspaceAvailability;
+
+  @IsOptional()
+  @ValidateIf((o) => o.availability !== undefined)
+  @IsString()
+  availabilityReason?: string;
 
   @IsOptional()
   @SanitizeString()

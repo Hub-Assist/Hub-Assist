@@ -41,6 +41,12 @@ export class Attendance {
   @Column({ nullable: true })
   hubId?: string;
 
+  @Column({ default: false })
+  autoCompleted: boolean = false;
+
+  @Column({ nullable: true })
+  autoCompletedReason?: string;
+
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;
 }

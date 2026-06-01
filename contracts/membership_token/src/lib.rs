@@ -30,6 +30,7 @@ pub enum DataKey {
     TokenCount,
     Token(u64),
     Admin,
+    Paused,
 }
 
 #[contracttype]
@@ -55,6 +56,21 @@ impl MembershipTokenContract {
     pub fn initialize(env: Env, admin: Address) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Paused, &false);
+    }
+
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.storage().instance().set(&DataKey::Paused, &true);
+        env.events().publish((symbol_short!("paused"),), admin);
+        Ok(())
+    }
+
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.events().publish((symbol_short!("unpaused"),), admin);
+        Ok(())
     }
 
     // ── single ops ──────────────────────────────────────────────────────────
@@ -66,6 +82,7 @@ impl MembershipTokenContract {
         tier: u32,
         expiry_date: u64,
     ) -> Result<u64, ContractError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         if expiry_date <= env.ledger().timestamp() {
             return Err(ContractError::InvalidExpiryDate);
@@ -80,11 +97,25 @@ impl MembershipTokenContract {
             status: MembershipStatus::Active,
         };
         Self::save_token(&env, &token);
+        
+        // Add to expiry index
+        let expiry_day = expiry_date / 86400; // Convert to days since epoch
+        let mut tokens_on_day: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ExpiryIndex(expiry_day))
+            .unwrap_or(Vec::new(&env));
+        tokens_on_day.push_back(id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ExpiryIndex(expiry_day), &tokens_on_day);
+        
         env.events().publish((symbol_short!("issue"), owner), id);
         Ok(id)
     }
 
     pub fn transfer_token(env: Env, id: u64, new_owner: Address) -> Result<(), ContractError> {
+        Self::require_not_paused(&env)?;
         let mut token = Self::load_token(&env, id)?;
         token.owner.require_auth();
         match Self::compute_status(&env, &token) {
@@ -106,12 +137,50 @@ impl MembershipTokenContract {
         id: u64,
         new_expiry_date: u64,
     ) -> Result<(), ContractError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
+<<<<<<< HEAD
         
         // Validate transition: GracePeriod -> Active
         let current_status = Self::compute_status(&env, &token);
         Self::validate_transition(&current_status, &MembershipStatus::Active)?;
+=======
+        if token.status == MembershipStatus::Revoked {
+            return Err(ContractError::TokenRevoked);
+        }
+        
+        // Remove from old expiry bucket
+        let old_expiry_day = token.expiry_date / 86400;
+        if let Some(mut tokens_on_day) = env
+            .storage()
+            .persistent()
+            .get::<DataKey, Vec<u64>>(&DataKey::ExpiryIndex(old_expiry_day))
+        {
+            tokens_on_day.retain(|&token_id| token_id != id);
+            if tokens_on_day.len() > 0 {
+                env.storage()
+                    .persistent()
+                    .set(&DataKey::ExpiryIndex(old_expiry_day), &tokens_on_day);
+            } else {
+                env.storage()
+                    .persistent()
+                    .remove(&DataKey::ExpiryIndex(old_expiry_day));
+            }
+        }
+        
+        // Add to new expiry bucket
+        let new_expiry_day = new_expiry_date / 86400;
+        let mut tokens_on_day: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ExpiryIndex(new_expiry_day))
+            .unwrap_or(Vec::new(&env));
+        tokens_on_day.push_back(id);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ExpiryIndex(new_expiry_day), &tokens_on_day);
+>>>>>>> origin/main
         
         token.expiry_date = new_expiry_date;
         token.status = MembershipStatus::Active;
@@ -126,6 +195,7 @@ impl MembershipTokenContract {
     }
 
     pub fn revoke_token(env: Env, admin: Address, id: u64) -> Result<(), ContractError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
         
@@ -153,6 +223,32 @@ impl MembershipTokenContract {
         Self::load_token(&env, id)
     }
 
+    pub fn get_expiring_tokens(env: Env, days_ahead: u64) -> Vec<u64> {
+        // Cap days_ahead at 365 to prevent excessive iteration
+        let days_ahead = if days_ahead > 365 { 365 } else { days_ahead };
+        
+        let now = env.ledger().timestamp();
+        let today = now / 86400;
+        let end_day = today + days_ahead;
+        
+        let mut expiring_ids = Vec::new(&env);
+        
+        // Iterate through expiry index for each day in the window
+        for day in today..=end_day {
+            if let Some(tokens_on_day) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, Vec<u64>>(&DataKey::ExpiryIndex(day))
+            {
+                for token_id in tokens_on_day.iter() {
+                    expiring_ids.push_back(token_id);
+                }
+            }
+        }
+        
+        expiring_ids
+    }
+
     // ── batch ops ────────────────────────────────────────────────────────────
 
     pub fn batch_issue_tokens(
@@ -160,17 +256,36 @@ impl MembershipTokenContract {
         admin: Address,
         params: Vec<IssueParams>,
     ) -> Result<Vec<u64>, ContractError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
-        // validate all first so a bad entry rolls back the whole tx
+        
+        // Validate batch size (max 50 to prevent timeout)
+        if params.len() > 50 {
+            return Err(ContractError::BatchTooLarge);
+        }
+        
+        // Validate all params first (fail fast before any tokens are issued)
         let now = env.ledger().timestamp();
         for p in params.iter() {
             if p.expiry_date <= now {
                 return Err(ContractError::InvalidExpiryDate);
             }
         }
+        
+        // Increment counter once by batch size
+        let batch_len = params.len() as u64;
+        let start_id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TokenCount)
+            .unwrap_or(0u64);
+        let next_id = start_id + batch_len;
+        env.storage().instance().set(&DataKey::TokenCount, &next_id);
+        
+        // Issue tokens with sequential IDs
         let mut ids = Vec::new(&env);
-        for p in params.iter() {
-            let id = Self::next_id(&env);
+        for (idx, p) in params.iter().enumerate() {
+            let id = start_id + (idx as u64) + 1;
             let token = MembershipToken {
                 id,
                 owner: p.owner.clone(),
@@ -180,7 +295,7 @@ impl MembershipTokenContract {
                 status: MembershipStatus::Active,
             };
             Self::save_token(&env, &token);
-            env.events().publish((symbol_short!("issue"), p.owner), id);
+            env.events().publish((symbol_short!("issue"), p.owner.clone()), id);
             ids.push_back(id);
         }
         Ok(ids)
@@ -190,6 +305,7 @@ impl MembershipTokenContract {
         env: Env,
         params: Vec<TransferParams>,
     ) -> Result<(), ContractError> {
+        Self::require_not_paused(&env)?;
         for p in params.iter() {
             let mut token = Self::load_token(&env, p.id)?;
             token.owner.require_auth();
@@ -208,6 +324,18 @@ impl MembershipTokenContract {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    fn require_not_paused(env: &Env) -> Result<(), ContractError> {
+        let paused: bool = env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false);
+        if paused {
+            return Err(ContractError::ContractPaused);
+        }
+        Ok(())
+    }
 
     fn require_admin(env: &Env, caller: &Address) -> Result<(), ContractError> {
         caller.require_auth();
@@ -253,15 +381,27 @@ impl MembershipTokenContract {
         if token.status == MembershipStatus::Revoked {
             return MembershipStatus::Revoked;
         }
-        if token.status == MembershipStatus::GracePeriod {
+        
+        let now = env.ledger().timestamp();
+        let grace_period_days: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::GracePeriodDays)
+            .unwrap_or(30u64);
+        let grace_period_secs = grace_period_days * 86_400;
+        
+        // Active if not yet expired
+        if now <= token.expiry_date {
+            return MembershipStatus::Active;
+        }
+        
+        // GracePeriod if within grace window
+        if now <= token.expiry_date + grace_period_secs {
             return MembershipStatus::GracePeriod;
         }
-        let now = env.ledger().timestamp();
-        if now > token.expiry_date {
-            MembershipStatus::Expired
-        } else {
-            MembershipStatus::Active
-        }
+        
+        // Expired if beyond grace period
+        MembershipStatus::Expired
     }
 
     /// Validate state machine transitions

@@ -37,6 +37,7 @@ import { IdempotencyMiddleware } from './common/middlewares/idempotency.middlewa
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { RedisThrottlerGuard } from './common/guards/redis-throttler.guard';
+import { CsrfGuard } from './auth/csrf.guard';
 
 @Module({
   imports: [
@@ -115,6 +116,7 @@ import { RedisThrottlerGuard } from './common/guards/redis-throttler.guard';
     { provide: APP_GUARD, useClass: RedisThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
     // LoggingInterceptor registered here so DI (LoggerService) works
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
   ],

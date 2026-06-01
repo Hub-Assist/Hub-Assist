@@ -1,16 +1,34 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../users/user.entity';
 import { Booking, BookingStatus } from '../bookings/booking.entity';
 import { Workspace } from '../workspaces/workspace.entity';
+import { AuditLog, EventCategory } from '../audit/audit-log.entity';
+
+export interface ActivityFeedQuery {
+  eventCategory?: EventCategory;
+  actorId?: string;
+  resourceId?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ActivityFeedResponse {
+  items: any[];
+  nextCursor?: string;
+  hasMore: boolean;
+}
 
 @Injectable()
 export class DashboardService {
+  private readonly MAX_PAGE_SIZE = 50;
+
   constructor(
     @InjectRepository(User) private userRepo: Repository<User>,
     @InjectRepository(Booking) private bookingRepo: Repository<Booking>,
     @InjectRepository(Workspace) private workspaceRepo: Repository<Workspace>,
+    @InjectRepository(AuditLog) private auditLogRepo: Repository<AuditLog>,
   ) {}
 
   async getStats() {
@@ -35,19 +53,74 @@ export class DashboardService {
     };
   }
 
-  async getActivity() {
-    const recentBookings = await this.bookingRepo.find({
-      relations: ['user', 'workspace'],
-      order: { createdAt: 'DESC' },
-      take: 10,
-    });
+  async getActivity(
+    query: ActivityFeedQuery = {},
+    currentUserId?: string,
+    currentUserRole?: UserRole,
+  ): Promise<ActivityFeedResponse> {
+    const limit = Math.min(query.limit || 20, this.MAX_PAGE_SIZE);
+    const qb = this.auditLogRepo.createQueryBuilder('audit');
 
-    return recentBookings.map((booking) => ({
-      id: booking.id,
-      icon: '📅',
-      description: `${booking.user.email} booked ${booking.workspace.name}`,
-      timestamp: booking.createdAt,
-    }));
+    // Role-based filtering: non-admins see only their own activity
+    if (currentUserRole !== UserRole.ADMIN && currentUserId) {
+      qb.where('audit.actorId = :actorId', { actorId: currentUserId });
+    }
+
+    // Apply optional filters
+    if (query.eventCategory) {
+      qb.andWhere('audit.eventCategory = :eventCategory', {
+        eventCategory: query.eventCategory,
+      });
+    }
+
+    if (query.actorId) {
+      qb.andWhere('audit.actorId = :actorId', { actorId: query.actorId });
+    }
+
+    if (query.resourceId) {
+      qb.andWhere('audit.resourceId = :resourceId', { resourceId: query.resourceId });
+    }
+
+    // Cursor-based pagination
+    if (query.cursor) {
+      const decodedCursor = Buffer.from(query.cursor, 'base64').toString('utf-8');
+      const [createdAt, id] = decodedCursor.split(':');
+      qb.andWhere(
+        '(audit.createdAt < :createdAt OR (audit.createdAt = :createdAt AND audit.id < :id))',
+        { createdAt: new Date(createdAt), id },
+      );
+    }
+
+    // Fetch one extra to determine if there are more results
+    const items = await qb
+      .orderBy('audit.createdAt', 'DESC')
+      .addOrderBy('audit.id', 'DESC')
+      .take(limit + 1)
+      .getMany();
+
+    const hasMore = items.length > limit;
+    const results = items.slice(0, limit);
+
+    let nextCursor: string | undefined;
+    if (hasMore && results.length > 0) {
+      const lastItem = results[results.length - 1];
+      const cursorStr = `${lastItem.createdAt.toISOString()}:${lastItem.id}`;
+      nextCursor = Buffer.from(cursorStr).toString('base64');
+    }
+
+    return {
+      items: results.map((log) => ({
+        id: log.id,
+        eventType: log.eventType,
+        eventCategory: log.eventCategory,
+        actorId: log.actorId,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        timestamp: log.createdAt,
+      })),
+      nextCursor,
+      hasMore,
+    };
   }
 
   async getGrowth(): Promise<Array<{ date: string; members: number }>> {

@@ -12,4 +12,6 @@ pub enum ContractError {
     InsufficientBalance = 7,
     PaymentTokenNotSet = 8,
     InvalidAmount = 9,
+    NotYetReleasable = 10,
+    AlreadyProcessed = 11,
 }
