@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards, Req, Get } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -8,18 +8,26 @@ import {
 } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { OAuthService } from './oauth.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../users/user.entity';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { OAuthTokenDto, OAuthTokenResponseDto } from './dto/oauth-token.dto';
 
 @ApiTags('auth')
 @Controller({ version: '1', path: 'auth' })
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly oauthService: OAuthService,
+  ) {}
 
   @Post('register')
   @Public()
@@ -96,15 +104,86 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken);
   }
 
+  @Get('csrf-token')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Get CSRF token for state-mutating requests' })
+  @ApiResponse({
+    status: 200,
+    description: 'CSRF token generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        csrfToken: { type: 'string', description: 'CSRF token to include in X-CSRF-Token header' },
+      },
+    },
+  })
+  async getCsrfToken(@Req() req: any) {
+    const csrfToken = await this.csrfService.generateToken(req.user.jti);
+    return { csrfToken };
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Logout user — immediately revokes the current access token' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  logout(@Req() req: any) {
+  async logout(@Req() req: any) {
+    // Invalidate CSRF token on logout
+    if (req.user?.jti) {
+      await this.csrfService.invalidateToken(req.user.jti);
+    }
     // req.user is populated by JwtStrategy.validate()
     // Pass jti + exp so the access token is blacklisted in Redis immediately.
     return this.authService.logout(req.user.id, req.user.jti, req.user.exp);
+  }
+
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Logout from all devices — revokes all refresh tokens and broadcasts session termination' })
+  @ApiResponse({ status: 200, description: 'Logged out from all devices' })
+  async logoutAll(@Req() req: any) {
+    const result = await this.authService.logoutAll(req.user.id, req.user.jti, req.user.exp);
+    // Broadcast session revocation to all connected SSE clients
+    this.sessionBroadcastService.broadcastSessionRevocation(req.user.id);
+    return result;
+  }
+
+  @Get('session-events')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Server-Sent Events stream for session termination notifications' })
+  @ApiResponse({ status: 200, description: 'SSE stream established' })
+  @Sse()
+  sessionEvents(@Req() req: any): Observable<any> {
+    const userId = req.user.id;
+    const eventStream = this.sessionBroadcastService.getSessionEventStream(userId);
+
+    // Emit heartbeat every 30 seconds to keep connection alive
+    const heartbeat$ = interval(30000).pipe(
+      map(() => ({ data: { type: 'heartbeat', timestamp: new Date() } })),
+    );
+
+    // Merge event stream with heartbeat
+    return new Observable((subscriber) => {
+      const eventSub = eventStream.subscribe({
+        next: (event) => subscriber.next({ data: event }),
+        error: (err) => subscriber.error(err),
+        complete: () => subscriber.complete(),
+      });
+
+      const heartbeatSub = heartbeat$.subscribe({
+        next: (hb) => subscriber.next(hb),
+        error: (err) => subscriber.error(err),
+      });
+
+      return () => {
+        eventSub.unsubscribe();
+        heartbeatSub.unsubscribe();
+        this.sessionBroadcastService.cleanupSessionStream(userId);
+      };
+    });
   }
 
   @Post('forgot-password')
@@ -123,5 +202,47 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Password reset successfully' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
+  }
+
+  // ── OAuth 2.0 Client Credentials ────────────────────────────────────────
+
+  @Post('oauth/token')
+  @Public()
+  @ApiOperation({ summary: 'OAuth 2.0 token endpoint (client credentials flow)' })
+  @ApiBody({ type: OAuthTokenDto })
+  @ApiResponse({ status: 200, description: 'Token issued', type: OAuthTokenResponseDto })
+  @ApiResponse({ status: 401, description: 'Invalid client credentials' })
+  async oauthToken(@Body() dto: OAuthTokenDto): Promise<OAuthTokenResponseDto> {
+    return this.oauthService.issueToken(dto);
+  }
+
+  @Post('oauth/clients')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'Create OAuth client (admin only)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Third-party Integration' },
+        scopes: { type: 'array', items: { type: 'string' }, example: ['bookings:read', 'attendance:write'] },
+      },
+      required: ['name', 'scopes'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Client created', schema: { type: 'object', properties: { clientId: { type: 'string' }, clientSecret: { type: 'string' } } } })
+  async createOAuthClient(@Body() body: { name: string; scopes: string[] }) {
+    return this.oauthService.createClient(body.name, body.scopes);
+  }
+
+  @Get('oauth/clients')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.Admin)
+  @ApiBearerAuth('bearer')
+  @ApiOperation({ summary: 'List OAuth clients (admin only)' })
+  @ApiResponse({ status: 200, description: 'List of OAuth clients' })
+  async listOAuthClients() {
+    return this.oauthService.listClients();
   }
 }

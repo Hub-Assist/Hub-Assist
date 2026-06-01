@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
+import { UserSearchService } from './services/user-search.service';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { CreateUserProvider } from './providers/create-user.provider';
 import { FindOneUserByIdProvider } from './providers/find-one-user-by-id.provider';
@@ -33,6 +34,7 @@ import { Attendance } from '../attendance/attendance.entity';
   ],
   providers: [
     UsersService,
+    UserSearchService,
     CreateUserProvider,
     FindOneUserByIdProvider,
     FindOneUserByEmailProvider,

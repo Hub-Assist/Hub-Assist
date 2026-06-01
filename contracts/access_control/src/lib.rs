@@ -97,4 +97,12 @@ impl AccessControlContract {
     ) -> Result<(), AccessControlError> {
         access_control::execute_proposal(&env, executor, proposal_id)
     }
+
+    pub fn migrate_roles_v2(env: Env, admin: Address) -> Result<(), AccessControlError> {
+        access_control::migrate_roles_v2(&env, admin)
+    }
+
+    pub fn get_storage_version(env: Env) -> u32 {
+        access_control::get_storage_version_view(&env)
+    }
 }

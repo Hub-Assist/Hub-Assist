@@ -22,4 +22,5 @@ export const validationSchema = Joi.object({
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
   REDIS_URL: Joi.string().optional(),
   HIBP_CHECK_ENABLED: Joi.boolean().default(false),
+  MAX_SESSION_HOURS: Joi.number().default(12),
 });

@@ -71,6 +71,13 @@ export class User {
   @Column({ type: 'jsonb', nullable: true })
   profilePictureUrls?: ProfilePictureUrls;
 
+  /**
+   * Cloudinary public ID for the profile picture.
+   * Used for deletion when user is deleted or picture is replaced.
+   */
+  @Column({ nullable: true })
+  profilePicturePublicId?: string;
+
   @Column({ default: false })
   totpEnabled: boolean;
 

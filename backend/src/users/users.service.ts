@@ -13,7 +13,7 @@ import { ForgotPasswordProvider } from './providers/forgot-password.provider';
 import { ResetPasswordProvider } from './providers/reset-password.provider';
 import { ChangePasswordProvider } from './providers/change-password.provider';
 import { User } from './user.entity';
-import { ProfilePictureUrls } from '../cloudinary/cloudinary.service';
+import { UploadResult } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
@@ -65,8 +65,8 @@ export class UsersService {
     return this.deleteUserProvider.execute(id);
   }
 
-  updateProfilePicture(id: string, urls: ProfilePictureUrls) {
-    return this.uploadProfilePictureProvider.execute(id, urls);
+  updateProfilePicture(id: string, uploadResult: UploadResult) {
+    return this.uploadProfilePictureProvider.execute(id, uploadResult);
   }
 
   validate(email: string, password: string) {

@@ -22,6 +22,11 @@ export enum WorkspaceAvailability {
   UNAVAILABLE = 'Unavailable',
 }
 
+export enum CapacityType {
+  SHARED = 'Shared',
+  EXCLUSIVE = 'Exclusive',
+}
+
 @Entity('workspaces')
 export class Workspace {
   @PrimaryGeneratedColumn('uuid')
@@ -41,6 +46,9 @@ export class Workspace {
 
   @Column({ type: 'enum', enum: WorkspaceAvailability })
   availability: WorkspaceAvailability;
+
+  @Column({ type: 'enum', enum: CapacityType, default: CapacityType.SHARED })
+  capacityType: CapacityType;
 
   @Column({ nullable: true })
   description: string;

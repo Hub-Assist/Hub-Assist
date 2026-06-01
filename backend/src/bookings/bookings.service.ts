@@ -21,6 +21,7 @@ import { PriceRule } from '../pricing/price-rule.entity';
 import { OutboxEventType } from '../outbox/outbox-event.entity';
 import { OutboxService } from '../outbox/outbox.service';
 import { WebhookService } from '../webhooks/webhook.service';
+import { CacheInvalidationService } from '../common/cache/cache-invalidation.service';
 
 @Injectable()
 export class BookingsService {
@@ -35,12 +36,13 @@ export class BookingsService {
     private pricingEngine: PricingEngineService,
     private outboxService: OutboxService,
     private webhookService: WebhookService,
+    private cacheInvalidationService: CacheInvalidationService,
   ) {}
 
   // ── create ─────────────────────────────────────────────────────────────────
 
   async create(userId: string, dto: CreateBookingDto, userTier: string = 'member') {
-    return this.repo.manager.transaction(async (manager) => {
+    const result = await this.repo.manager.transaction(async (manager) => {
       const workspace = await manager.findOne(Workspace, {
         where: { id: dto.workspaceId },
       });
@@ -167,6 +169,10 @@ export class BookingsService {
 
       return saved;
     });
+
+    // Invalidate dashboard cache after booking is created
+    await this.cacheInvalidationService.invalidateDashboardCache();
+    return result;
   }
 
   // ── findAll ────────────────────────────────────────────────────────────────

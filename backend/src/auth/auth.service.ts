@@ -294,6 +294,18 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
+  async logoutAll(userId: string, jti?: string, exp?: number) {
+    // Revoke all refresh tokens for the user
+    await this.refreshTokenRepository.revokeAllUserTokens(userId);
+
+    // Blacklist the current access token
+    if (jti && exp !== undefined) {
+      await this.blacklistAccessToken(jti, exp);
+    }
+
+    return { message: 'Logged out from all devices successfully' };
+  }
+
    async forgotPassword(email: string) {
      const user = await this.usersService.findByEmail(email);
 

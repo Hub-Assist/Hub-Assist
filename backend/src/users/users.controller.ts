@@ -26,6 +26,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UpdateUserDto } from './users.dto';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -43,6 +44,7 @@ import { AuditInterceptor } from '../audit/audit.interceptor';
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly userSearchService: UserSearchService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly tokenBlacklistService: TokenBlacklistService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -51,26 +53,65 @@ export class UsersController {
   private userCacheKey(id: string) {
     return `user:${id}`;
   }
-  @Get()
+  @Get('search')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Get all users (admin only, paginated)' })
-  @ApiQuery({ name: 'skip', type: Number, required: false, example: 0 })
-  @ApiQuery({ name: 'take', type: Number, required: false, example: 10 })
+  @ApiOperation({
+    summary: 'Full-text search users (admin only)',
+    description: `Search across name and email with advanced filtering.
+
+**Search behavior:**
+- Uses PostgreSQL full-text search (tsvector GIN index)
+- Supports partial matches and word boundaries
+- Results ranked by relevance when searching
+
+**Filters:**
+- \`role\` – Filter by user role (admin, member, staff)
+- \`verified\` – Filter by verification status (true/false)
+
+**Pagination:**
+- Cursor-based pagination using user ID
+- Returns \`hasMore\` flag and \`nextCursor\` for pagination
+
+**Email masking:**
+- Non-admin users see masked email addresses (e.g., \`jo****@example.com\`)
+- Admin users see full email addresses`,
+  })
+  @ApiQuery({ name: 'q', type: String, required: false, example: 'john' })
+  @ApiQuery({ name: 'role', enum: UserRole, required: false })
+  @ApiQuery({ name: 'verified', type: Boolean, required: false })
+  @ApiQuery({ name: 'cursor', type: String, required: false })
+  @ApiQuery({ name: 'limit', type: Number, required: false, example: 20 })
   @ApiResponse({
     status: 200,
-    description: 'Users retrieved successfully',
+    description: 'Search results retrieved successfully',
     schema: {
       type: 'object',
       properties: {
-        users: { type: 'array' },
-        total: { type: 'number' },
+        users: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              email: { type: 'string' },
+              firstName: { type: 'string' },
+              lastName: { type: 'string' },
+              role: { type: 'string', enum: ['admin', 'member', 'staff'] },
+              isVerified: { type: 'boolean' },
+              createdAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+        hasMore: { type: 'boolean' },
+        nextCursor: { type: 'string', nullable: true },
       },
     },
   })
-  async findAll(@Query('skip') skip: number = 0, @Query('take') take: number = 10) {
-    const [users, total] = await this.usersService.findAll(skip, take);
-    return { users, total };
+  async search(@Query() dto: UserSearchDto) {
+    return this.userSearchService.search(dto);
   }
+
+  @Get()
 
   @Post('change-password')
   @ApiOperation({ summary: 'Change own password' })
@@ -94,7 +135,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user' })
   @ApiParam({ name: 'id', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
-  async update(@Param('id') id: string, @Body() data: any) {
+  async update(@Param('id') id: string, @Body() data: UpdateUserDto) {
     const result = await this.usersService.update(id, data);
     await this.cacheManager.del(this.userCacheKey(id));
     return result;

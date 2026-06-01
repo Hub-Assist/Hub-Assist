@@ -16,6 +16,10 @@ export interface ProfilePictureUrls {
   full: string;
 }
 
+export interface UploadResult extends ProfilePictureUrls {
+  publicId: string;
+}
+
 @Injectable()
 export class CloudinaryService {
   private cloudName: string;
@@ -50,9 +54,9 @@ export class CloudinaryService {
    *  - `face` gravity   – auto-crop to the subject's face for thumbnail/avatar
    *  - `quality: 'auto'` – Cloudinary picks the optimal quality level
    *
-   * @returns ProfilePictureUrls with thumbnail (50×50), avatar (200×200), full (800×800)
+   * @returns UploadResult with thumbnail (50×50), avatar (200×200), full (800×800), and publicId
    */
-  async uploadProfilePicture(file: Express.Multer.File): Promise<ProfilePictureUrls> {
+  async uploadProfilePicture(file: Express.Multer.File): Promise<UploadResult> {
     const result = await this.uploadToCloudinary(file, {
       // Correct orientation from EXIF metadata
       transformation: [{ angle: 'exif' }],
@@ -61,10 +65,26 @@ export class CloudinaryService {
     const publicId = result.public_id;
 
     return {
+      publicId,
       thumbnail: buildVariantUrl(this.cloudName, publicId, PROFILE_PICTURE_VARIANTS.thumbnail),
       avatar: buildVariantUrl(this.cloudName, publicId, PROFILE_PICTURE_VARIANTS.avatar),
       full: buildVariantUrl(this.cloudName, publicId, PROFILE_PICTURE_VARIANTS.full),
     };
+  }
+
+  /**
+   * Delete an asset from Cloudinary by public ID.
+   * Idempotent – does not throw if asset does not exist.
+   */
+  async deleteAsset(publicId: string): Promise<void> {
+    if (!publicId) return;
+    try {
+      await cloudinary.uploader.destroy(publicId);
+    } catch (error: any) {
+      // Ignore "not found" errors; log others
+      if (error?.message?.includes('not found')) return;
+      throw error;
+    }
   }
 
   // ─── private ──────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ export interface ConflictDetail {
     endTime: Date;
   };
   reason: string;
+  available?: number;
 }
 
 @Injectable()
@@ -109,9 +110,11 @@ export class ConflictDetectionService {
       if (maxConcurrent > workspace.capacity) {
         // Find one specific conflicting booking to report
         const firstConflict = overlappingBookings[0];
+        const available = Math.max(0, workspace.capacity - (maxConcurrent - 1));
         return {
           conflictingBookingId: firstConflict.id,
-          reason: 'Capacity Exceeded',
+          reason: 'capacity_exceeded',
+          available,
           overlappingWindow: {
             startTime: firstConflict.startTime,
             endTime: firstConflict.endTime,

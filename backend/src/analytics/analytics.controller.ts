@@ -6,7 +6,7 @@ import { AnalyticsService } from './analytics.service';
 
 @ApiTags('analytics')
 @ApiBearerAuth('bearer')
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.STAFF)
 @Controller({ version: '1', path: 'analytics' })
 export class AnalyticsController {
   // Simple in-process cache: key → { data, expiresAt }
@@ -51,5 +51,28 @@ export class AnalyticsController {
   @ApiResponse({ status: 200 })
   getAttendancePatterns() {
     return this.cached('attendance-patterns', () => this.service.getAttendancePatterns());
+  }
+
+  @Get('utilization')
+  @ApiOperation({
+    summary: 'Workspace utilization analytics with 30/60/90-day trend forecasting (admin/staff only)',
+  })
+  @ApiQuery({ name: 'workspaceType', type: String, required: false })
+  @ApiQuery({ name: 'startDate', type: String, required: false })
+  @ApiQuery({ name: 'endDate', type: String, required: false })
+  @ApiResponse({ status: 200 })
+  async getUtilizationAnalytics(
+    @Query('workspaceType') workspaceType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const cacheKey = `utilization:${workspaceType || 'all'}:${startDate || 'default'}:${endDate || 'default'}`;
+    return this.cached(cacheKey, () =>
+      this.service.getUtilizationAnalytics(
+        workspaceType,
+        startDate ? new Date(startDate) : undefined,
+        endDate ? new Date(endDate) : undefined,
+      ),
+    );
   }
 }

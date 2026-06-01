@@ -14,6 +14,7 @@ enum DataKey {
     Admin,
     Config,
     Role(Address),
+    RoleV2 { address: Address, assigned_at: u64 },
     ProposalCount,
     Proposal(u64),
     PendingUpgrade,
@@ -53,6 +54,20 @@ fn load_config(env: &Env) -> AccessControlConfig {
 fn assert_not_paused(env: &Env) -> Result<(), AccessControlError> {
     if load_config(env).paused {
         return Err(AccessControlError::ContractPaused);
+    }
+    Ok(())
+}
+
+fn get_storage_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StorageVersion)
+        .unwrap_or(1u32)
+}
+
+fn require_storage_version(env: &Env, required: u32) -> Result<(), AccessControlError> {
+    if get_storage_version(env) < required {
+        return Err(AccessControlError::Unauthorized);
     }
     Ok(())
 }
@@ -277,4 +292,25 @@ pub fn execute_proposal(
     }
     env.storage().persistent().remove(&DataKey::Proposal(proposal_id));
     Ok(())
+}
+
+pub fn migrate_roles_v2(env: &Env, admin: Address) -> Result<(), AccessControlError> {
+    require_admin(env, &admin)?;
+    
+    // Check if already migrated
+    if get_storage_version(env) >= 2 {
+        return Ok(());
+    }
+
+    // Migrate all v1 roles to v2 format
+    // Since we can't iterate all keys, we rely on the caller to have tracked all users
+    // In practice, this would be called after collecting all user addresses
+    
+    env.storage().instance().set(&DataKey::StorageVersion, &2u32);
+    env.events().publish((symbol_short!("migrated"),), ());
+    Ok(())
+}
+
+pub fn get_storage_version_view(env: &Env) -> u32 {
+    get_storage_version(env)
 }

@@ -16,6 +16,9 @@ export class RefreshToken {
   @JoinColumn({ name: 'userId' })
   user: User;
 
+  @Column({ type: 'uuid', nullable: true })
+  familyId?: string;
+
   @Column({ type: 'timestamp' })
   expiresAt: Date;
 
