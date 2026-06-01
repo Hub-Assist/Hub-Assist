@@ -1,20 +1,9 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, contracterror, symbol_short, Address, Env, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Vec};
+
+use common_types::ContractError;
 
 const TOKEN_TTL: u32 = 17_280 * 365; // ~1 year in ledgers
-
-#[contracterror]
-#[derive(Clone, Copy, PartialEq, Debug)]
-#[repr(u32)]
-pub enum ContractError {
-    AdminNotSet        = 1,
-    NotAdmin           = 2,
-    TokenNotFound      = 3,
-    TokenAlreadyIssued = 4,
-    InvalidExpiryDate  = 5,
-    TokenRevoked       = 6,
-    GracePeriodBlock   = 7,
-}
 
 #[contracttype]
 #[derive(Clone, PartialEq, Debug)]

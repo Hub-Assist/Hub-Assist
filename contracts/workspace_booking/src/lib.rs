@@ -1,11 +1,10 @@
 #![no_std]
 
-mod errors;
 mod types;
 #[cfg(test)]
 mod test;
 
-pub(crate) use errors::ContractError;
+pub(crate) use common_types::ContractError;
 pub(crate) use types::{
     Booking, BookingStatus, UnavailabilityReason, Workspace, WorkspaceAvailability, WorkspaceType,
 };

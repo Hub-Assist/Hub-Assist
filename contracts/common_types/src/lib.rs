@@ -1,7 +1,9 @@
 #![no_std]
 
+mod errors;
 mod types;
 
+pub use errors::ContractError;
 pub use types::{
     AttendanceFrequency, DateRange, DayPattern, MembershipStatus, MetadataValue, PeakHourData,
     Subscription, SubscriptionStatus, SubscriptionTier, TierChangeRequest, TierChangeStatus,
