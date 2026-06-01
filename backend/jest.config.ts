@@ -22,6 +22,9 @@ const config: Config = {
     },
   },
   testEnvironment: 'node',
+  transformIgnorePatterns: [
+    'node_modules/(?!(file-type|strtok3|token-types|peek-readable))',
+  ],
 };
 
 export default config;
