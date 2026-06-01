@@ -7,6 +7,7 @@ mod test;
 pub(crate) use common_types::ContractError;
 pub(crate) use types::{
     Booking, BookingStatus, UnavailabilityReason, Workspace, WorkspaceAvailability, WorkspaceType,
+    WaitlistEntry,
 };
 
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, vec, Address, BytesN, Env, String, Vec};
@@ -22,6 +23,8 @@ enum DataKey {
     BookingCount,
     Booking(u64),
     MemberBookings(Address),
+    Waitlist(u32),
+    WaitlistCount(u32),
 }
 
 #[contract]
@@ -108,18 +111,30 @@ impl WorkspaceBooking {
             return Err(ContractError::InsufficientPayment);
         }
 
-        // Check overlapping bookings
+        // Check overlapping bookings and count confirmed bookings
         let booking_count: u64 = storage.get(&DataKey::BookingCount).unwrap_or(0);
+        let mut confirmed_count = 0u32;
         for i in 1..=booking_count {
             if let Some(b) = storage.get::<DataKey, Booking>(&DataKey::Booking(i)) {
-                if b.workspace_id == workspace_id
-                    && b.status != BookingStatus::Cancelled
-                    && b.start_time < end_time
-                    && start_time < b.end_time
-                {
-                    return Err(ContractError::OverlappingBooking);
+                if b.workspace_id == workspace_id && b.status == BookingStatus::Confirmed {
+                    if b.start_time < end_time && start_time < b.end_time {
+                        return Err(ContractError::TimeConflict);
+                    }
+                    confirmed_count += 1;
                 }
             }
+        }
+
+        // Check if workspace is at capacity
+        if confirmed_count >= workspace.capacity {
+            // Add to waitlist instead
+            return Self::add_to_waitlist(
+                &env,
+                member,
+                workspace_id,
+                amount,
+                booking_count + 1,
+            );
         }
 
         let id = booking_count + 1;
@@ -187,6 +202,10 @@ impl WorkspaceBooking {
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
         env.events().publish((symbol_short!("cancel"),), booking_id);
+
+        // Promote first waitlisted member if any
+        Self::promote_from_waitlist(&env, booking.workspace_id);
+
         Ok(())
     }
 
@@ -230,6 +249,135 @@ impl WorkspaceBooking {
             }
         }
         result
+    }
+
+    // --- helpers ---
+
+    fn add_to_waitlist(
+        env: &Env,
+        member: Address,
+        workspace_id: u32,
+        amount: i128,
+        booking_id: u64,
+    ) -> Result<u64, ContractError> {
+        let storage = env.storage().persistent();
+        
+        // Check waitlist size (max 20)
+        let waitlist_count: u32 = storage.get(&DataKey::WaitlistCount(workspace_id)).unwrap_or(0);
+        if waitlist_count >= 20 {
+            return Err(ContractError::WaitlistFull);
+        }
+
+        // Create waitlist entry
+        let entry = WaitlistEntry {
+            member: member.clone(),
+            workspace_id,
+            amount,
+            added_at: env.ledger().timestamp(),
+        };
+
+        // Store in waitlist vector
+        let mut waitlist: Vec<WaitlistEntry> = storage
+            .get(&DataKey::Waitlist(workspace_id))
+            .unwrap_or(vec![env]);
+        waitlist.push_back(entry);
+        storage.set(&DataKey::Waitlist(workspace_id), &waitlist);
+        storage.extend_ttl(&DataKey::Waitlist(workspace_id), LEDGER_TTL, LEDGER_TTL);
+
+        // Update count
+        storage.set(&DataKey::WaitlistCount(workspace_id), &(waitlist_count + 1));
+
+        // Emit waitlist event with position
+        env.events().publish(
+            (symbol_short!("waitlist"),),
+            (member, workspace_id, waitlist_count + 1),
+        );
+
+        Ok(booking_id)
+    }
+
+    fn promote_from_waitlist(env: &Env, workspace_id: u32) {
+        let storage = env.storage().persistent();
+        
+        let mut waitlist: Vec<WaitlistEntry> = match storage.get(&DataKey::Waitlist(workspace_id)) {
+            Some(w) => w,
+            None => return,
+        };
+
+        if waitlist.is_empty() {
+            return;
+        }
+
+        // Get first entry (FIFO)
+        let entry = waitlist.front().unwrap().clone();
+        
+        // Remove from waitlist
+        let mut new_waitlist = vec![env];
+        for i in 1..waitlist.len() {
+            new_waitlist.push_back(waitlist.get(i).unwrap().clone());
+        }
+        
+        if new_waitlist.is_empty() {
+            storage.remove(&DataKey::Waitlist(workspace_id));
+        } else {
+            storage.set(&DataKey::Waitlist(workspace_id), &new_waitlist);
+        }
+
+        let count: u32 = storage.get(&DataKey::WaitlistCount(workspace_id)).unwrap_or(0);
+        if count > 0 {
+            storage.set(&DataKey::WaitlistCount(workspace_id), &(count - 1));
+        }
+
+        // Emit promotion event
+        env.events().publish(
+            (symbol_short!("promoted"),),
+            (entry.member, workspace_id),
+        );
+    }
+
+    pub fn leave_waitlist(env: Env, caller: Address, workspace_id: u32) -> Result<(), ContractError> {
+        caller.require_auth();
+        let storage = env.storage().persistent();
+
+        let mut waitlist: Vec<WaitlistEntry> = storage
+            .get(&DataKey::Waitlist(workspace_id))
+            .ok_or(ContractError::NotInWaitlist)?;
+
+        // Find and remove caller from waitlist
+        let mut found = false;
+        let mut new_waitlist = vec![&env];
+        for entry in waitlist.iter() {
+            if entry.member != caller {
+                new_waitlist.push_back(entry.clone());
+            } else {
+                found = true;
+            }
+        }
+
+        if !found {
+            return Err(ContractError::NotInWaitlist);
+        }
+
+        if new_waitlist.is_empty() {
+            storage.remove(&DataKey::Waitlist(workspace_id));
+        } else {
+            storage.set(&DataKey::Waitlist(workspace_id), &new_waitlist);
+        }
+
+        let count: u32 = storage.get(&DataKey::WaitlistCount(workspace_id)).unwrap_or(0);
+        if count > 0 {
+            storage.set(&DataKey::WaitlistCount(workspace_id), &(count - 1));
+        }
+
+        env.events().publish((symbol_short!("left_wl"),), (caller, workspace_id));
+        Ok(())
+    }
+
+    pub fn get_waitlist(env: Env, workspace_id: u32) -> Vec<WaitlistEntry> {
+        let storage = env.storage().persistent();
+        storage
+            .get(&DataKey::Waitlist(workspace_id))
+            .unwrap_or(vec![&env])
     }
 
     // --- helpers ---

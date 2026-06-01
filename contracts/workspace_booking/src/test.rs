@@ -333,3 +333,109 @@ fn test_book_zero_amount_returns_insufficient_payment() {
         .unwrap();
     assert_eq!(err, ContractError::InsufficientPayment);
 }
+
+// ── waitlist ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_book_at_capacity_adds_to_waitlist() {
+    let t = TestEnv::new();
+    // Register workspace with capacity 1
+    let ws_id = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Desk A"),
+        &WorkspaceType::HotDesk,
+        &1,
+        &10,
+    );
+    
+    let member1 = Address::generate(&t.env);
+    let member2 = Address::generate(&t.env);
+    
+    // First booking should succeed
+    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash());
+    assert!(booking1.is_ok());
+    
+    // Confirm first booking
+    t.client().confirm_booking(&booking1.unwrap());
+    
+    // Second booking should be added to waitlist (returns booking_id)
+    let booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash());
+    assert!(booking2.is_ok());
+    
+    // Verify waitlist has one entry
+    let waitlist = t.client().get_waitlist(&ws_id);
+    assert_eq!(waitlist.len(), 1);
+    assert_eq!(waitlist.get(0).unwrap().member, member2);
+}
+
+#[test]
+fn test_cancel_booking_promotes_from_waitlist() {
+    let t = TestEnv::new();
+    let ws_id = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Desk A"),
+        &WorkspaceType::HotDesk,
+        &1,
+        &10,
+    );
+    
+    let member1 = Address::generate(&t.env);
+    let member2 = Address::generate(&t.env);
+    
+    // Book and confirm first
+    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    t.client().confirm_booking(&booking1);
+    
+    // Add to waitlist
+    let _booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    
+    // Cancel first booking
+    t.client().cancel(&member1, &booking1);
+    
+    // Waitlist should be empty after promotion
+    let waitlist = t.client().get_waitlist(&ws_id);
+    assert_eq!(waitlist.len(), 0);
+}
+
+#[test]
+fn test_leave_waitlist_removes_member() {
+    let t = TestEnv::new();
+    let ws_id = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Desk A"),
+        &WorkspaceType::HotDesk,
+        &1,
+        &10,
+    );
+    
+    let member1 = Address::generate(&t.env);
+    let member2 = Address::generate(&t.env);
+    
+    // Book and confirm first
+    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    t.client().confirm_booking(&booking1);
+    
+    // Add to waitlist
+    let _booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    
+    // Leave waitlist
+    t.client().leave_waitlist(&member2, &ws_id);
+    
+    // Waitlist should be empty
+    let waitlist = t.client().get_waitlist(&ws_id);
+    assert_eq!(waitlist.len(), 0);
+}
+
+#[test]
+fn test_leave_waitlist_not_in_waitlist_returns_error() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    let member = Address::generate(&t.env);
+    
+    let err = t
+        .client()
+        .try_leave_waitlist(&member, &ws_id)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::NotInWaitlist);
+}
