@@ -5,7 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
+import { Amenity } from './amenity.entity';
 
 
 export enum WorkspaceType {
@@ -53,8 +56,9 @@ export class Workspace {
   @Column({ nullable: true })
   description: string;
 
-  @Column({ type: 'text', array: true, default: () => "'{}'" })
-  amenities: string[];
+  @ManyToMany(() => Amenity, (amenity) => amenity.workspaces)
+  @JoinTable({ name: 'workspace_amenities' })
+  amenities: Amenity[];
 
   @Column({ nullable: true })
   hubId?: string;
