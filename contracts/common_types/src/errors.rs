@@ -49,4 +49,13 @@ pub enum ContractError {
     // General
     Overflow = 30,
     InvalidInput = 31,
+
+    // Booking lifecycle
+    AlreadyCancelled = 32,
+    PaymentTokenNotSet = 33,
+    InsufficientAllowance = 34,
+
+    // Workspace type registry
+    UnknownWorkspaceType = 35,
+    WorkspaceTypeAlreadyExists = 36,
 }
