@@ -5,9 +5,10 @@ mod types;
 
 pub use errors::ContractError;
 pub use types::{
-    AttendanceFrequency, DateRange, DayPattern, MembershipStatus, MetadataValue, PeakHourData,
-    Subscription, SubscriptionStatus, SubscriptionTier, TierChangeRequest, TierChangeStatus,
-    TierChangeType, TierFeature, TierLevel, TierPromotion, TimePeriod, UserAttendanceStats,
+    AggregatePeakHourData, AttendanceFrequency, DateRange, DayPattern, EntitlementResult,
+    FeatureFlag, MembershipStatus, MetadataValue, PeakHourData, Subscription, SubscriptionStatus,
+    SubscriptionTier, TierChangeRequest, TierChangeStatus, TierChangeType, TierFeature, TierLevel,
+    TierPromotion, TimePeriod, UserAttendanceStats,
 };
 
 use soroban_sdk::{contracttype, Env};

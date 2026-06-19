@@ -1,4 +1,14 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, String, Vec};
+
+// ── Error type ─────────────────────────────────────────────────────────────
+#[contracterror]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum StakeError {
+    NoActiveStake = 1,
+    TierNotFound = 2,
+    TokenNotSet = 3,
+    InvalidAmount = 4,
+}
 
 // ── TTL constant (~30 days at ~5s/ledger) ─────────────────────────────────
 const STAKE_TTL_LEDGERS: u32 = 30 * 17_280;
@@ -304,19 +314,19 @@ impl StakingModule {
             / REWARD_PRECISION
     }
 
-    pub fn claim_rewards(env: Env, staker: Address) -> Result<i128, &'static str> {
+    pub fn claim_rewards(env: Env, staker: Address) -> Result<i128, StakeError> {
         staker.require_auth();
         let mut info: StakeInfo = env
             .storage()
             .persistent()
             .get(&StakeKey::Stake(staker.clone()))
-            .ok_or("no active stake")?;
+            .ok_or(StakeError::NoActiveStake)?;
 
         let tier: StakingTier = env
             .storage()
             .persistent()
             .get(&StakeKey::Tier(info.tier_id.clone()))
-            .ok_or("tier not found")?;
+            .ok_or(StakeError::TierNotFound)?;
 
         let now = env.ledger().timestamp();
         let rewards = Self::calculate_rewards(info.amount, info.stake_timestamp, now, tier.base_rate_bps);
@@ -329,7 +339,7 @@ impl StakingModule {
             .storage()
             .instance()
             .get(&StakeKey::StakingToken)
-            .ok_or("staking token not set")?;
+            .ok_or(StakeError::TokenNotSet)?;
         
         token::Client::new(&env, &staking_token).transfer(
             &env.current_contract_address(),
@@ -348,31 +358,30 @@ impl StakingModule {
             .extend_ttl(&StakeKey::Stake(staker.clone()), STAKE_TTL_LEDGERS, STAKE_TTL_LEDGERS);
 
         env.events()
-            .publish((symbol_short!("reward_claimed"),), (staker, rewards));
+            .publish((symbol_short!("rwd_clm"),), (staker, rewards));
         Ok(rewards)
     }
 
-    pub fn partial_unstake(env: Env, staker: Address, unstake_amount: i128) -> Result<(), &'static str> {
+    pub fn partial_unstake(env: Env, staker: Address, unstake_amount: i128) -> Result<(), StakeError> {
         staker.require_auth();
         let mut info: StakeInfo = env
             .storage()
             .persistent()
             .get(&StakeKey::Stake(staker.clone()))
-            .ok_or("no active stake")?;
+            .ok_or(StakeError::NoActiveStake)?;
 
         if unstake_amount <= 0 || unstake_amount > info.amount {
-            return Err("invalid unstake amount");
+            return Err(StakeError::InvalidAmount);
         }
 
         let tier: StakingTier = env
             .storage()
             .persistent()
             .get(&StakeKey::Tier(info.tier_id.clone()))
-            .ok_or("tier not found")?;
+            .ok_or(StakeError::TierNotFound)?;
 
         let now = env.ledger().timestamp();
         
-        // Calculate rewards for the removed portion
         let removed_portion_ratio = unstake_amount * REWARD_PRECISION / info.amount;
         let total_rewards = Self::calculate_rewards(info.amount, info.stake_timestamp, now, tier.base_rate_bps);
         let removed_rewards = total_rewards * removed_portion_ratio / REWARD_PRECISION;
@@ -381,16 +390,14 @@ impl StakingModule {
             .storage()
             .instance()
             .get(&StakeKey::StakingToken)
-            .ok_or("staking token not set")?;
+            .ok_or(StakeError::TokenNotSet)?;
 
-        // Transfer unstaked amount + pro-rated rewards
         token::Client::new(&env, &staking_token).transfer(
             &env.current_contract_address(),
             &staker,
             &(unstake_amount + removed_rewards),
         );
 
-        // Update stake
         info.amount -= unstake_amount;
         info.accumulated_rewards = total_rewards - removed_rewards;
         info.stake_timestamp = now;
@@ -403,7 +410,7 @@ impl StakingModule {
             .extend_ttl(&StakeKey::Stake(staker.clone()), STAKE_TTL_LEDGERS, STAKE_TTL_LEDGERS);
 
         env.events()
-            .publish((symbol_short!("partial_ust"),), (staker, unstake_amount, removed_rewards));
+            .publish((symbol_short!("part_ust"),), (staker, unstake_amount, removed_rewards));
         Ok(())
     }
 }
