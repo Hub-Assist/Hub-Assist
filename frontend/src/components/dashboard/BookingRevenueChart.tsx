@@ -48,7 +48,8 @@ export function BookingRevenueChart() {
             <Area dataKey="revenue" stroke="#1A1A1A" strokeWidth={2} fill="url(#revenueGrad)" />
           </AreaChart>
         </ResponsiveContainer>
-      )}
+        );
+      })()}
     </div>
   );
 }

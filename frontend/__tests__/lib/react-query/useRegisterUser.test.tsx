@@ -352,7 +352,9 @@ describe("useRegisterUser", () => {
         });
       });
 
-      expect(result.current.isPending).toBe(true);
+      await waitFor(() => {
+        expect(result.current.isPending).toBe(true);
+      });
 
       act(() => {
         resolveRegister!({ access_token: makeToken() });
@@ -363,12 +365,27 @@ describe("useRegisterUser", () => {
       });
     });
 
-    it("should use correct mutation key", () => {
-      const { result } = renderHook(() => useRegisterUser(), {
-        wrapper: createWrapper(),
+    it("should register the mutation under the correct mutation key", () => {
+      const testQueryClient = createTestQueryClient();
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
+      );
+
+      mockPost.mockReturnValueOnce(new Promise(() => {}));
+
+      const { result } = renderHook(() => useRegisterUser(), { wrapper });
+
+      act(() => {
+        result.current.mutate({
+          firstname: "Jane",
+          lastname: "Smith",
+          email: "jane@example.com",
+          password: "pass",
+        });
       });
 
-      expect(result.current.mutationKey).toEqual(["auth", "register"]);
+      const [mutation] = testQueryClient.getMutationCache().getAll();
+      expect(mutation?.options.mutationKey).toEqual(["auth", "register"]);
     });
   });
 
