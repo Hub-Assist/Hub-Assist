@@ -13,6 +13,7 @@ pub(crate) use types::{
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, Address, BytesN, Env, String, Vec};
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
+const MAX_BATCH_SIZE: u32 = 20;
 
 #[contracttype]
 enum DataKey {
@@ -240,6 +241,55 @@ impl WorkspaceBooking {
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
         env.events().publish((symbol_short!("confirm_b"),), booking_id);
+        Ok(())
+    }
+
+    pub fn batch_confirm(env: Env, admin: Address, booking_ids: Vec<u64>) -> Result<(), ContractError> {
+        Self::require_not_paused(&env);
+        Self::require_admin(&env, &admin);
+
+        // Validate batch size - max 20 IDs to prevent ledger timeout
+        if booking_ids.len() as u32 > MAX_BATCH_SIZE {
+            return Err(ContractError::BatchTooLarge);
+        }
+
+        let storage = env.storage().persistent();
+
+        // Pre-validate all bookings before making any changes (fail-fast principle)
+        for booking_id in booking_ids.iter() {
+            let booking: Booking = storage
+                .get(&DataKey::Booking(booking_id))
+                .ok_or(ContractError::BookingNotFound)?;
+
+            if booking.status == BookingStatus::Confirmed {
+                return Err(ContractError::BookingAlreadyConfirmed);
+            }
+
+            let workspace: Workspace = storage
+                .get(&DataKey::Workspace(booking.workspace_id))
+                .ok_or(ContractError::WorkspaceNotFound)?;
+
+            // Verify workspace is not cancelled (Unavailable or Maintenance)
+            match &workspace.availability {
+                WorkspaceAvailability::Available => {},
+                WorkspaceAvailability::Unavailable(_) => return Err(ContractError::WorkspaceUnavailable),
+            }
+        }
+
+        // All validations passed, now confirm all bookings atomically
+        for booking_id in booking_ids.iter() {
+            let mut booking: Booking = storage.get(&DataKey::Booking(booking_id)).unwrap();
+            booking.status = BookingStatus::Confirmed;
+            storage.set(&DataKey::Booking(booking_id), &booking);
+            storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
+        }
+
+        // Emit batch confirmation event with admin address and count
+        env.events().publish(
+            (symbol_short!("batch_conf"),),
+            (admin, booking_ids.len() as u32),
+        );
+
         Ok(())
     }
 
