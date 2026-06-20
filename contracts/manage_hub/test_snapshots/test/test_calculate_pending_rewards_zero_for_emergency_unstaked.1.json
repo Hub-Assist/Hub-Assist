@@ -510,6 +510,17 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "accumulated_rewards"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 0
+                        }
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "amount"
                       },
                       "val": {
@@ -536,6 +547,14 @@
                       },
                       "val": {
                         "bool": false
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "stake_timestamp"
+                      },
+                      "val": {
+                        "u64": 1000
                       }
                     },
                     {
@@ -1761,6 +1780,17 @@
               "map": [
                 {
                   "key": {
+                    "symbol": "accumulated_rewards"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 0
+                    }
+                  }
+                },
+                {
+                  "key": {
                     "symbol": "amount"
                   },
                   "val": {
@@ -1787,6 +1817,14 @@
                   },
                   "val": {
                     "bool": false
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "stake_timestamp"
+                  },
+                  "val": {
+                    "u64": 1000
                   }
                 },
                 {

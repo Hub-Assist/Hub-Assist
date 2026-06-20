@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, xdr::ToXdr, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
 use common_types::{EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
 
@@ -21,7 +21,6 @@ pub struct SubscriptionModule;
 
 pub struct SubscriptionFeatureService;
 
-#[contractimpl]
 impl SubscriptionFeatureService {
     /// Check if subscriber has access to a feature based on their tier
     pub fn has_feature(
@@ -88,7 +87,7 @@ impl SubscriptionFeatureService {
         admin.require_auth();
         env.storage()
             .persistent()
-            .set(&SubKey::TierFeatures(tier), &features);
+            .set(&SubKey::TierFeatures(tier.clone()), &features);
         env.events()
             .publish((symbol_short!("tier_feat"),), (tier, features.len()));
     }

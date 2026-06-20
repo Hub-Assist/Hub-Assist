@@ -1,4 +1,18 @@
-use soroban_sdk::{contracttype, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
+
+/// A pending withdrawal created when a staker calls `unstake()`.
+/// The principal (and accrued rewards up to that point) cannot be claimed
+/// until `env.ledger().timestamp() >= claimable_at`.
+#[contracttype]
+#[derive(Clone)]
+pub struct PendingWithdrawal {
+    /// Token amount (principal + rewards at unstake time) waiting for release.
+    pub amount: i128,
+    /// Unix timestamp after which `claim_unstaked` is allowed.
+    pub claimable_at: u64,
+    /// The staker address this withdrawal belongs to.
+    pub staker: Address,
+}
 
 #[contracttype]
 #[derive(Clone, PartialEq)]
