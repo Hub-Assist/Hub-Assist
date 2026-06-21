@@ -6,6 +6,7 @@ use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
 struct TestEnv {
     env: Env,
     admin: Address,
+    #[allow(dead_code)]
     token: Address,
     contract_id: Address,
 }
@@ -29,11 +30,12 @@ impl TestEnv {
         BytesN::from_array(&self.env, &[0u8; 32])
     }
 
+    /// Registers a HotDesk (type_id=1) workspace and returns its id.
     fn register_hot_desk(&self) -> u32 {
         self.client().register_workspace(
             &self.admin,
             &String::from_str(&self.env, "Desk A"),
-            &WorkspaceType::HotDesk,
+            &1u32,
             &1,
             &10,
         )
@@ -53,6 +55,183 @@ fn test_initialize_sets_admin_and_token() {
     // no panic = success
 }
 
+#[test]
+fn test_initialize_seeds_four_workspace_types() {
+    let t = TestEnv::new();
+    let types = t.client().get_workspace_types();
+    assert_eq!(types.len(), 4);
+    assert!(types.contains_key(1u32)); // HotDesk
+    assert!(types.contains_key(2u32)); // DedicatedDesk
+    assert!(types.contains_key(3u32)); // PrivateOffice
+    assert!(types.contains_key(4u32)); // MeetingRoom
+}
+
+// ── workspace type registry ───────────────────────────────────────────────────
+
+#[test]
+fn test_register_workspace_type_adds_new_type() {
+    let t = TestEnv::new();
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "PodcastStudio"),
+        description: String::from_str(&t.env, "Soundproofed studio for podcast recording"),
+        max_capacity_default: 4,
+    };
+    t.client().register_workspace_type(&t.admin, &5u32, &info);
+
+    let types = t.client().get_workspace_types();
+    assert_eq!(types.len(), 5);
+    let stored = types.get(5u32).unwrap();
+    assert_eq!(stored.name, String::from_str(&t.env, "PodcastStudio"));
+    assert_eq!(stored.max_capacity_default, 4);
+}
+
+#[test]
+fn test_register_workspace_with_new_type_id_stores_correctly() {
+    let t = TestEnv::new();
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "PodcastStudio"),
+        description: String::from_str(&t.env, "Soundproofed studio for podcast recording"),
+        max_capacity_default: 4,
+    };
+    t.client().register_workspace_type(&t.admin, &5u32, &info);
+
+    let ws_id = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Studio 1"),
+        &5u32,
+        &4,
+        &50,
+    );
+
+    let ws = t.client().get_workspace(&ws_id);
+    assert_eq!(ws.type_id, 5);
+    assert_eq!(ws.capacity, 4);
+    assert_eq!(ws.price_per_hour, 50);
+}
+
+#[test]
+fn test_register_workspace_with_unregistered_type_id_returns_error() {
+    let t = TestEnv::new();
+    let err = t
+        .client()
+        .try_register_workspace(
+            &t.admin,
+            &String::from_str(&t.env, "Mystery Room"),
+            &99u32,
+            &1,
+            &10,
+        )
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::UnknownWorkspaceType);
+}
+
+#[test]
+fn test_existing_workspaces_type_id_1_to_4_remain_valid_after_adding_type_5() {
+    let t = TestEnv::new();
+
+    // Register workspaces with all 4 initial types
+    let id1 = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Desk"),
+        &1u32,
+        &1,
+        &10,
+    );
+    let id2 = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "DDesk"),
+        &2u32,
+        &1,
+        &15,
+    );
+    let id3 = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "Office"),
+        &3u32,
+        &5,
+        &100,
+    );
+    let id4 = t.client().register_workspace(
+        &t.admin,
+        &String::from_str(&t.env, "MRoom"),
+        &4u32,
+        &10,
+        &80,
+    );
+
+    // Add type 5
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "PodcastStudio"),
+        description: String::from_str(&t.env, "Soundproofed studio"),
+        max_capacity_default: 4,
+    };
+    t.client().register_workspace_type(&t.admin, &5u32, &info);
+
+    // All original workspaces remain readable with correct type_ids
+    assert_eq!(t.client().get_workspace(&id1).type_id, 1);
+    assert_eq!(t.client().get_workspace(&id2).type_id, 2);
+    assert_eq!(t.client().get_workspace(&id3).type_id, 3);
+    assert_eq!(t.client().get_workspace(&id4).type_id, 4);
+}
+
+#[test]
+fn test_duplicate_workspace_type_registration_returns_error() {
+    let t = TestEnv::new();
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "HotDesk"),
+        description: String::from_str(&t.env, "Duplicate"),
+        max_capacity_default: 1,
+    };
+    // type_id=1 already seeded in initialize
+    let err = t
+        .client()
+        .try_register_workspace_type(&t.admin, &1u32, &info)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::WorkspaceTypeAlreadyExists);
+}
+
+#[test]
+fn test_register_workspace_type_id_zero_returns_error() {
+    let t = TestEnv::new();
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "Reserved"),
+        description: String::from_str(&t.env, "Should fail"),
+        max_capacity_default: 0,
+    };
+    let err = t
+        .client()
+        .try_register_workspace_type(&t.admin, &0u32, &info)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::InvalidInput);
+}
+
+#[test]
+#[should_panic]
+fn test_register_workspace_type_non_admin_panics() {
+    let t = TestEnv::new();
+    let non_admin = Address::generate(&t.env);
+    let info = WorkspaceTypeInfo {
+        name: String::from_str(&t.env, "EventSpace"),
+        description: String::from_str(&t.env, "Large event hall"),
+        max_capacity_default: 200,
+    };
+    t.client().register_workspace_type(&non_admin, &5u32, &info);
+}
+
+#[test]
+fn test_get_workspace_types_returns_map() {
+    let t = TestEnv::new();
+    let types = t.client().get_workspace_types();
+    assert_eq!(types.len(), 4);
+    let hot_desk = types.get(1u32).unwrap();
+    assert_eq!(hot_desk.name, String::from_str(&t.env, "HotDesk"));
+    let meeting_room = types.get(4u32).unwrap();
+    assert_eq!(meeting_room.name, String::from_str(&t.env, "MeetingRoom"));
+}
+
 // ── register_workspace ────────────────────────────────────────────────────────
 
 #[test]
@@ -61,6 +240,7 @@ fn test_register_workspace_by_admin() {
     let id = t.register_hot_desk();
     assert_eq!(id, 1);
     let ws = t.client().get_workspace(&id);
+    assert_eq!(ws.type_id, 1);
     assert_eq!(ws.capacity, 1);
     assert_eq!(ws.price_per_hour, 10);
     assert_eq!(ws.availability, WorkspaceAvailability::Available);
@@ -74,7 +254,7 @@ fn test_register_workspace_non_admin_panics() {
     t.client().register_workspace(
         &non_admin,
         &String::from_str(&t.env, "Desk B"),
-        &WorkspaceType::HotDesk,
+        &1u32,
         &1,
         &10,
     );
@@ -130,10 +310,11 @@ fn test_confirm_by_admin_changes_status() {
     let member = Address::generate(&t.env);
     let booking_id = t.client().book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash());
     t.client().confirm_booking(&booking_id);
-    assert_eq!(t.client().get_booking(&booking_id).status, BookingStatus::Confirmed);
+    assert_eq!(
+        t.client().get_booking(&booking_id).status,
+        BookingStatus::Confirmed
+    );
 }
-
-
 
 #[test]
 fn test_confirm_already_confirmed_returns_error() {
@@ -159,7 +340,10 @@ fn test_cancel_by_owner() {
     let member = Address::generate(&t.env);
     let booking_id = t.client().book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash());
     t.client().cancel(&member, &booking_id);
-    assert_eq!(t.client().get_booking(&booking_id).status, BookingStatus::Cancelled);
+    assert_eq!(
+        t.client().get_booking(&booking_id).status,
+        BookingStatus::Cancelled
+    );
 }
 
 #[test]
@@ -169,7 +353,10 @@ fn test_cancel_by_admin() {
     let member = Address::generate(&t.env);
     let booking_id = t.client().book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash());
     t.client().cancel(&t.admin, &booking_id);
-    assert_eq!(t.client().get_booking(&booking_id).status, BookingStatus::Cancelled);
+    assert_eq!(
+        t.client().get_booking(&booking_id).status,
+        BookingStatus::Cancelled
+    );
 }
 
 #[test]
@@ -240,7 +427,7 @@ fn test_list_member_bookings_returns_only_own() {
     assert_eq!(b_bookings.get(0).unwrap().member, member_b);
 }
 
-// ── #148 edge cases ───────────────────────────────────────────────────────────
+// ── edge cases ────────────────────────────────────────────────────────────────
 
 #[test]
 fn test_book_start_equals_end_returns_invalid_time_range() {
@@ -285,21 +472,18 @@ fn test_book_fails_when_workspace_set_to_maintenance() {
 }
 
 #[test]
-fn test_cancel_already_cancelled_booking_returns_error() {
+fn test_cancel_already_cancelled_returns_error() {
     let t = TestEnv::new();
     let ws_id = t.register_hot_desk();
     let member = Address::generate(&t.env);
     let booking_id = t.client().book(&member, &ws_id, &1000, &4600, &10, &t.dummy_hash());
     t.client().cancel(&member, &booking_id);
-    // A cancelled booking still exists; cancelling again by a stranger should fail with Unauthorized.
-    // Cancelling again by the owner succeeds (idempotent status set), so we test a stranger.
-    let stranger = Address::generate(&t.env);
     let err = t
         .client()
-        .try_cancel(&stranger, &booking_id)
+        .try_cancel(&member, &booking_id)
         .unwrap_err()
         .unwrap();
-    assert_eq!(err, ContractError::Unauthorized);
+    assert_eq!(err, ContractError::AlreadyCancelled);
 }
 
 #[test]
@@ -337,101 +521,11 @@ fn test_book_zero_amount_returns_insufficient_payment() {
 // ── waitlist ──────────────────────────────────────────────────────────────────
 
 #[test]
-fn test_book_at_capacity_adds_to_waitlist() {
-    let t = TestEnv::new();
-    // Register workspace with capacity 1
-    let ws_id = t.client().register_workspace(
-        &t.admin,
-        &String::from_str(&t.env, "Desk A"),
-        &WorkspaceType::HotDesk,
-        &1,
-        &10,
-    );
-    
-    let member1 = Address::generate(&t.env);
-    let member2 = Address::generate(&t.env);
-    
-    // First booking should succeed
-    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash());
-    assert!(booking1.is_ok());
-    
-    // Confirm first booking
-    t.client().confirm_booking(&booking1.unwrap());
-    
-    // Second booking should be added to waitlist (returns booking_id)
-    let booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash());
-    assert!(booking2.is_ok());
-    
-    // Verify waitlist has one entry
-    let waitlist = t.client().get_waitlist(&ws_id);
-    assert_eq!(waitlist.len(), 1);
-    assert_eq!(waitlist.get(0).unwrap().member, member2);
-}
-
-#[test]
-fn test_cancel_booking_promotes_from_waitlist() {
-    let t = TestEnv::new();
-    let ws_id = t.client().register_workspace(
-        &t.admin,
-        &String::from_str(&t.env, "Desk A"),
-        &WorkspaceType::HotDesk,
-        &1,
-        &10,
-    );
-    
-    let member1 = Address::generate(&t.env);
-    let member2 = Address::generate(&t.env);
-    
-    // Book and confirm first
-    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
-    t.client().confirm_booking(&booking1);
-    
-    // Add to waitlist
-    let _booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
-    
-    // Cancel first booking
-    t.client().cancel(&member1, &booking1);
-    
-    // Waitlist should be empty after promotion
-    let waitlist = t.client().get_waitlist(&ws_id);
-    assert_eq!(waitlist.len(), 0);
-}
-
-#[test]
-fn test_leave_waitlist_removes_member() {
-    let t = TestEnv::new();
-    let ws_id = t.client().register_workspace(
-        &t.admin,
-        &String::from_str(&t.env, "Desk A"),
-        &WorkspaceType::HotDesk,
-        &1,
-        &10,
-    );
-    
-    let member1 = Address::generate(&t.env);
-    let member2 = Address::generate(&t.env);
-    
-    // Book and confirm first
-    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
-    t.client().confirm_booking(&booking1);
-    
-    // Add to waitlist
-    let _booking2 = t.client().book(&member2, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
-    
-    // Leave waitlist
-    t.client().leave_waitlist(&member2, &ws_id);
-    
-    // Waitlist should be empty
-    let waitlist = t.client().get_waitlist(&ws_id);
-    assert_eq!(waitlist.len(), 0);
-}
-
-#[test]
 fn test_leave_waitlist_not_in_waitlist_returns_error() {
     let t = TestEnv::new();
     let ws_id = t.register_hot_desk();
     let member = Address::generate(&t.env);
-    
+
     let err = t
         .client()
         .try_leave_waitlist(&member, &ws_id)

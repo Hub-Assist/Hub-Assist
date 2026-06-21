@@ -3,29 +3,27 @@ use soroban_sdk::{contracttype, Address, BytesN, String};
 #[contracttype]
 #[derive(Clone)]
 pub struct TierDiscounts {
-    pub guest: u32,      // 0% (0 bps)
-    pub member: u32,     // 5% (500 bps)
-    pub gold: u32,       // 10% (1000 bps)
-    pub platinum: u32,   // 15% (1500 bps)
+    pub guest: u32,
+    pub member: u32,
+    pub gold: u32,
+    pub platinum: u32,
 }
 
+/// On-chain descriptor for a workspace type stored in the type registry.
 #[contracttype]
-#[derive(Clone, PartialEq)]
-pub enum WorkspaceType {
-    HotDesk,
-    DedicatedDesk,
-    PrivateOffice,
-    MeetingRoom,
-    Virtual,
-    Hybrid,
+#[derive(Clone, PartialEq, Debug)]
+pub struct WorkspaceTypeInfo {
+    pub name: String,
+    pub description: String,
+    pub max_capacity_default: u32,
 }
 
 #[contracttype]
 #[derive(Clone, PartialEq, Debug)]
 pub enum WorkspaceState {
     Available,
-    Unavailable { reason: String },
-    Maintenance { scheduled_return: u64 },
+    Unavailable(String),  // reason
+    Maintenance(u64),     // scheduled_return timestamp
 }
 
 #[contracttype]
@@ -48,7 +46,8 @@ pub enum WorkspaceAvailability {
 pub struct Workspace {
     pub id: u32,
     pub name: String,
-    pub workspace_type: WorkspaceType,
+    /// References a type_id in the WorkspaceTypeRegistry. Valid IDs start at 1.
+    pub type_id: u32,
     pub capacity: u32,
     pub price_per_hour: i128,
     pub availability: WorkspaceAvailability,

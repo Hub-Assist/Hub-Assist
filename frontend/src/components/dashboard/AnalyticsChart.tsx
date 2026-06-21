@@ -57,7 +57,8 @@ export function AnalyticsChart() {
             <Bar dataKey="count" fill="#1A1A1A" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-      )}
+        );
+      })()}
     </div>
   );
 }

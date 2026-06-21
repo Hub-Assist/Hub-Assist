@@ -1,12 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { Workspace, WorkspaceType, WorkspaceFilters } from "@/types/workspace";
+import type { Workspace, WorkspaceFilters, WorkspaceType } from "@/types/workspace";
 import { api } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { WorkspaceFiltersComponent } from "@/components/workspaces/WorkspaceFilters";
+import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
+import { booleanCodec, enumCodec, numberCodec } from "@/lib/filters/codecs";
+
+const WORKSPACE_TYPES: WorkspaceType[] = ["office", "meeting-room", "desk", "conference-room"];
+
+const DEFAULT_WORKSPACE_FILTERS: WorkspaceFilters = {};
+
+const WORKSPACE_FILTERS_SCHEMA: FilterSchema<WorkspaceFilters> = {
+  type: enumCodec(WORKSPACE_TYPES),
+  availability: booleanCodec(),
+  minPrice: numberCodec(),
+  maxPrice: numberCodec(),
+};
 
 interface WorkspacesResponse {
   workspaces: Workspace[];
@@ -66,65 +78,8 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   );
 }
 
-function WorkspaceFilters({ filters, onFiltersChange }: {
-  filters: WorkspaceFilters;
-  onFiltersChange: (filters: WorkspaceFilters) => void;
-}) {
-  return (
-    <div className="bg-white p-4 rounded-lg shadow mb-6">
-      <div className="flex flex-wrap gap-4 items-end">
-        <div>
-          <label className="block text-sm font-medium mb-2">Type</label>
-          <Select
-            value={filters.type || ""}
-            onChange={(e) => onFiltersChange({ ...filters, type: e.target.value as WorkspaceType || undefined })}
-          >
-            <option value="">All Types</option>
-            <option value="office">Office</option>
-            <option value="meeting-room">Meeting Room</option>
-            <option value="desk">Desk</option>
-            <option value="conference-room">Conference Room</option>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">Availability</label>
-          <Select
-            value={filters.availability === undefined ? "" : filters.availability.toString()}
-            onChange={(e) => onFiltersChange({
-              ...filters,
-              availability: e.target.value === "" ? undefined : e.target.value === "true"
-            })}
-          >
-            <option value="">All</option>
-            <option value="true">Available</option>
-            <option value="false">Unavailable</option>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-2">Max Price ($/hour)</label>
-          <Input
-            type="number"
-            placeholder="Max price"
-            value={filters.maxPrice || ""}
-            onChange={(e) => onFiltersChange({
-              ...filters,
-              maxPrice: e.target.value ? parseInt(e.target.value) : undefined
-            })}
-          />
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => onFiltersChange({})}
-        >
-          Clear Filters
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-export default function WorkspacesPage() {
-  const [filters, setFilters] = useState<WorkspaceFilters>({});
+function WorkspacesContent() {
+  const [filters, setFilters] = useFiltersWithUrl(DEFAULT_WORKSPACE_FILTERS, WORKSPACE_FILTERS_SCHEMA);
 
   const { data, isLoading, isError } = useQuery<WorkspacesResponse>({
     queryKey: ["workspaces", filters],
@@ -164,7 +119,7 @@ export default function WorkspacesPage() {
         <p className="text-gray-600">Find and book the perfect workspace for your needs</p>
       </div>
 
-      <WorkspaceFilters filters={filters} onFiltersChange={setFilters} />
+      <WorkspaceFiltersComponent filters={filters} onFiltersChange={setFilters} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {data?.workspaces?.length ? (
@@ -178,5 +133,13 @@ export default function WorkspacesPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WorkspacesPage() {
+  return (
+    <Suspense>
+      <WorkspacesContent />
+    </Suspense>
   );
 }

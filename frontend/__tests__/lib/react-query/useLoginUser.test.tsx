@@ -230,7 +230,9 @@ describe("useLoginUser", () => {
         result.current.mutate({ email: "test@example.com", password: "pass" });
       });
 
-      expect(result.current.isPending).toBe(true);
+      await waitFor(() => {
+        expect(result.current.isPending).toBe(true);
+      });
 
       act(() => {
         resolveLogin!({ access_token: makeToken() });
@@ -241,12 +243,22 @@ describe("useLoginUser", () => {
       });
     });
 
-    it("should use correct mutation key", () => {
-      const { result } = renderHook(() => useLoginUser(), {
-        wrapper: createWrapper(),
+    it("should register the mutation under the correct mutation key", () => {
+      const testQueryClient = createTestQueryClient();
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
+      );
+
+      mockPost.mockReturnValueOnce(new Promise(() => {}));
+
+      const { result } = renderHook(() => useLoginUser(), { wrapper });
+
+      act(() => {
+        result.current.mutate({ email: "test@example.com", password: "pass" });
       });
 
-      expect(result.current.mutationKey).toEqual(["auth", "login"]);
+      const [mutation] = testQueryClient.getMutationCache().getAll();
+      expect(mutation?.options.mutationKey).toEqual(["auth", "login"]);
     });
   });
 

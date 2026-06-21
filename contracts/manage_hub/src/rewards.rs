@@ -221,12 +221,9 @@ impl RewardsModule {
     }
 
     /// Hash a leaf node (claimant, amount)
-    fn hash_leaf(claimant: &Address, amount: &i128) -> BytesN<32> {
-        // In production, use proper serialization
-        // For now, create a simple hash combining address and amount
-        let mut data = [0u8; 32];
-        // This is a simplified version - in production use proper hashing
-        data
+    fn hash_leaf(_claimant: &Address, _amount: &i128) -> BytesN<32> {
+        // Simplified placeholder - production would hash claimant+amount
+        BytesN::from_array(&_claimant.env(), &[0u8; 32])
     }
 
     /// Verify Merkle proof

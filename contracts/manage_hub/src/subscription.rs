@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, xdr::ToXdr, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, Address, Bytes, BytesN, Env, String, Vec};
 
 use common_types::{EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
 
@@ -21,7 +21,6 @@ pub struct SubscriptionModule;
 
 pub struct SubscriptionFeatureService;
 
-#[contractimpl]
 impl SubscriptionFeatureService {
     /// Check if subscriber has access to a feature based on their tier
     pub fn has_feature(
@@ -54,13 +53,14 @@ impl SubscriptionFeatureService {
                 .storage()
                 .persistent()
                 .get(&SubKey::TierFeatures(tier.level.clone()))
-                .unwrap_or(vec![&env]);
+                .unwrap_or(Vec::new(&env));
 
             let has_access = features.iter().any(|f| f == feature);
+            let tier_level = tier.level;
 
             EntitlementResult {
                 has_access,
-                tier: tier.level,
+                tier: tier_level,
                 feature,
                 reason: if has_access {
                     String::from_str(&env, "feature enabled for tier")
@@ -88,7 +88,7 @@ impl SubscriptionFeatureService {
         admin.require_auth();
         env.storage()
             .persistent()
-            .set(&SubKey::TierFeatures(tier), &features);
+            .set(&SubKey::TierFeatures(tier.clone()), &features);
         env.events()
             .publish((symbol_short!("tier_feat"),), (tier, features.len()));
     }
@@ -130,7 +130,15 @@ impl SubscriptionModule {
 
         let now = env.ledger().timestamp();
         let sub = Subscription {
-            id: env.crypto().sha256(&env.ledger().sequence().to_xdr(&env)).into(),
+            id: {
+                let seq = env.ledger().sequence();
+                let seq_bytes = seq.to_le_bytes();
+                let mut b = Bytes::new(&env);
+                for byte in seq_bytes.iter() {
+                    b.push_back(*byte);
+                }
+                env.crypto().sha256(&b).into()
+            },
             user: user.clone(),
             payment_token: payment_token.clone(),
             amount,

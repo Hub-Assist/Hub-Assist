@@ -1,0 +1,2 @@
+[env]
+PATH = { value = "C:\\msys64\\mingw64\\bin", force = false, relative = false }
