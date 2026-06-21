@@ -533,3 +533,68 @@ fn test_leave_waitlist_not_in_waitlist_returns_error() {
         .unwrap();
     assert_eq!(err, ContractError::NotInWaitlist);
 }
+
+// ── batch_confirm ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_batch_confirm_all_valid_pending_bookings() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    
+    let member1 = Address::generate(&t.env);
+    let member2 = Address::generate(&t.env);
+    let member3 = Address::generate(&t.env);
+    
+    // Create 3 pending bookings with non-overlapping times
+    let booking1 = t.client().book(&member1, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    let booking2 = t.client().book(&member2, &ws_id, &5000, &8600, &100, &t.dummy_hash()).unwrap();
+    let booking3 = t.client().book(&member3, &ws_id, &10000, &13600, &100, &t.dummy_hash()).unwrap();
+    
+    // Batch confirm all 3
+    let booking_ids = soroban_sdk::vec![&t.env, booking1, booking2, booking3];
+    t.client().batch_confirm(&t.admin, &booking_ids).unwrap();
+    
+    // Verify all are confirmed
+    assert_eq!(t.client().get_booking(&booking1).unwrap().status, BookingStatus::Confirmed);
+    assert_eq!(t.client().get_booking(&booking2).unwrap().status, BookingStatus::Confirmed);
+    assert_eq!(t.client().get_booking(&booking3).unwrap().status, BookingStatus::Confirmed);
+}
+
+#[test]
+fn test_batch_confirm_with_non_existent_booking_id_reverts() {
+    let t = TestEnv::new();
+    let ws_id = t.register_hot_desk();
+    
+    let member = Address::generate(&t.env);
+    let booking1 = t.client().book(&member, &ws_id, &1000, &4600, &100, &t.dummy_hash()).unwrap();
+    
+    // Try to confirm batch with non-existent booking
+    let booking_ids = soroban_sdk::vec![&t.env, booking1, 999];
+    let err = t
+        .client()
+        .try_batch_confirm(&t.admin, &booking_ids)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::BookingNotFound);
+    
+    // Original booking should still be pending (atomicity check)
+    assert_eq!(t.client().get_booking(&booking1).unwrap().status, BookingStatus::Pending);
+}
+
+#[test]
+fn test_batch_confirm_exceeding_max_size_returns_error() {
+    let t = TestEnv::new();
+    
+    // Create batch larger than MAX_BATCH_SIZE (20)
+    let mut booking_ids = soroban_sdk::vec![&t.env];
+    for i in 0..21 {
+        booking_ids.push_back(i as u64);
+    }
+    
+    let err = t
+        .client()
+        .try_batch_confirm(&t.admin, &booking_ids)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, ContractError::BatchTooLarge);
+}
