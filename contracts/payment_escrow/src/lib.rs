@@ -20,6 +20,7 @@ enum DataKey {
     Admin,
     PaymentToken,
     DisputeWindow,
+    DisputeWindowConfig(u32),
     EscrowCount,
     Escrow(u64),
     DepositorEscrows(Address),
@@ -46,6 +47,12 @@ impl PaymentEscrow {
     pub fn set_arbitrators(env: Env, admin: Address, arbitrators: Vec<Address>) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().persistent().set(&DataKey::Arbitrators, &arbitrators);
+        Ok(())
+    }
+
+    pub fn set_dispute_window(env: Env, admin: Address, booking_type: u32, window_seconds: u64) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.storage().persistent().set(&DataKey::DisputeWindowConfig(booking_type), &window_seconds);
         Ok(())
     }
 
@@ -76,6 +83,7 @@ impl PaymentEscrow {
         beneficiary: Address,
         amount: i128,
         release_time: u64,
+        booking_type: u32,
     ) -> Result<u64, ContractError> {
         Self::require_not_paused(&env)?;
         depositor.require_auth();
@@ -86,7 +94,11 @@ impl PaymentEscrow {
 
         let s = env.storage().persistent();
         let payment_token: Address = s.get(&DataKey::PaymentToken).ok_or(ContractError::PaymentTokenNotSet)?;
-        let dispute_window: u64 = s.get(&DataKey::DisputeWindow).unwrap_or(86_400);
+        // Snapshot dispute window: per-type config takes priority over default
+        let dispute_window: u64 = s
+            .get(&DataKey::DisputeWindowConfig(booking_type))
+            .or_else(|| s.get(&DataKey::DisputeWindow))
+            .unwrap_or(86_400);
 
         // Transfer tokens from depositor to this contract
         token::Client::new(&env, &payment_token).transfer(
@@ -185,7 +197,7 @@ impl PaymentEscrow {
         Ok(())
     }
 
-    /// Mark escrow as disputed. Depositor only, while still Active.
+    /// Mark escrow as disputed. Depositor only, while still Active and within dispute window.
     pub fn dispute(env: Env, depositor: Address, escrow_id: u64, evidence_hash: BytesN<32>) -> Result<(), ContractError> {
         Self::require_not_paused(&env)?;
         depositor.require_auth();
@@ -197,6 +209,12 @@ impl PaymentEscrow {
         }
         if escrow.status != EscrowStatus::Active {
             return Err(ContractError::EscrowAlreadyReleased);
+        }
+
+        // Enforce dispute window: must be raised before release_time + dispute_window
+        let now = env.ledger().timestamp();
+        if now > escrow.release_time + escrow.dispute_window {
+            return Err(ContractError::DisputeWindowExpired);
         }
 
         escrow.status = EscrowStatus::Disputed;

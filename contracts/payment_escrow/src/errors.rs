@@ -14,4 +14,5 @@ pub enum ContractError {
     InvalidAmount = 9,
     NotYetReleasable = 10,
     AlreadyProcessed = 11,
+    DisputeWindowExpired = 12,
 }
