@@ -47,7 +47,8 @@ export function WorkspaceUtilizationChart() {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      )}
+        );
+      })()}
     </div>
   );
 }
