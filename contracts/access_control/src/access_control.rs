@@ -1,9 +1,10 @@
-use soroban_sdk::{symbol_short, Address, BytesN, Env, Vec};
+use soroban_sdk::{symbol_short, Address, Env, Vec};
 
 use crate::errors::AccessControlError;
 use crate::types::{
     AccessControlConfig, MembershipInfo, MultiSigConfig, PendingProposal, ProposalAction, UserRole,
 };
+use common_types::run_migrations;
 
 // ── storage keys ─────────────────────────────────────────────────────────────
 
@@ -14,10 +15,11 @@ enum DataKey {
     Admin,
     Config,
     Role(Address),
-    RoleV2 { address: Address, assigned_at: u64 },
+    RoleV2(Address, u64),
     ProposalCount,
     Proposal(u64),
     PendingUpgrade,
+    StorageVersion,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -287,7 +289,10 @@ pub fn execute_proposal(
             env.storage().instance().set(&DataKey::PendingUpgrade, &new_wasm_hash);
             // Execute the upgrade
             env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
-            env.events().publish((symbol_short!("upgrade_exec"),), new_wasm_hash);
+            // Run any pending schema migrations post-WASM-update.
+            // Add new MigrationStep instances here as the schema evolves.
+            run_migrations(env, &[]);
+            env.events().publish((symbol_short!("upg_exec"),), new_wasm_hash);
         }
     }
     env.storage().persistent().remove(&DataKey::Proposal(proposal_id));

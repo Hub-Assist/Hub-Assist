@@ -27,4 +27,6 @@ pub enum ContractError {
     PaymentTokenNotSet = 32,
     AlreadyCancelled = 33,
     BatchTooLarge = 34,
+    UnknownWorkspaceType = 35,
+    WorkspaceTypeAlreadyExists = 36,
 }

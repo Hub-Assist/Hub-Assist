@@ -1,5 +1,6 @@
 use soroban_sdk::{contract, contractimpl, Env, BytesN};
 use crate::upgrade_errors::UpgradeError;
+use common_types::run_migrations;
 
 #[contract]
 pub struct UpgradeModule;
@@ -10,6 +11,11 @@ impl UpgradeModule {
         admin.require_auth();
 
         env.deployer().update_current_contract_wasm(new_wasm_hash);
+
+        // Run any pending schema migrations post-WASM-update.
+        // Add new MigrationStep instances here as the schema evolves.
+        run_migrations(&env, &[]);
+
         Ok(())
     }
 
@@ -46,6 +52,9 @@ impl UpgradeModule {
 
         env.deployer().update_current_contract_wasm(scheduled.0);
         env.storage().persistent().remove(&key);
+
+        // Run any pending schema migrations post-WASM-update.
+        run_migrations(&env, &[]);
 
         Ok(())
     }

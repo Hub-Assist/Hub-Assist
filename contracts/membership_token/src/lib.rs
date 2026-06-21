@@ -29,6 +29,8 @@ pub struct MembershipToken {
 pub enum DataKey {
     TokenCount,
     Token(u64),
+    ExpiryIndex(u64),
+    GracePeriodDays,
     Admin,
     Paused,
 }
@@ -140,24 +142,22 @@ impl MembershipTokenContract {
         Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
-<<<<<<< HEAD
-        
-        // Validate transition: GracePeriod -> Active
         let current_status = Self::compute_status(&env, &token);
         Self::validate_transition(&current_status, &MembershipStatus::Active)?;
-=======
-        if token.status == MembershipStatus::Revoked {
-            return Err(ContractError::TokenRevoked);
-        }
-        
-        // Remove from old expiry bucket
+
         let old_expiry_day = token.expiry_date / 86400;
         if let Some(mut tokens_on_day) = env
             .storage()
             .persistent()
             .get::<DataKey, Vec<u64>>(&DataKey::ExpiryIndex(old_expiry_day))
         {
-            tokens_on_day.retain(|&token_id| token_id != id);
+            let mut updated_tokens = Vec::new(&env);
+            for token_id in tokens_on_day.iter() {
+                if token_id != id {
+                    updated_tokens.push_back(token_id);
+                }
+            }
+            tokens_on_day = updated_tokens;
             if tokens_on_day.len() > 0 {
                 env.storage()
                     .persistent()
@@ -180,7 +180,6 @@ impl MembershipTokenContract {
         env.storage()
             .persistent()
             .set(&DataKey::ExpiryIndex(new_expiry_day), &tokens_on_day);
->>>>>>> origin/main
         
         token.expiry_date = new_expiry_date;
         token.status = MembershipStatus::Active;
@@ -425,6 +424,17 @@ impl MembershipTokenContract {
             // All other transitions are invalid
             _ => Err(ContractError::InvalidTransition),
         }
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
+        Ok(())
     }
 }
 

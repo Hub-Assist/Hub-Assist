@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, String};
+use soroban_sdk::contracterror;
 
 /// Unified error enum for all cross-contract operations
 #[contracterror]
@@ -58,4 +58,8 @@ pub enum ContractError {
     // Workspace type registry
     UnknownWorkspaceType = 35,
     WorkspaceTypeAlreadyExists = 36,
+
+    // Batch & lifecycle
+    BatchTooLarge = 37,
+    ContractPaused = 38,
 }
