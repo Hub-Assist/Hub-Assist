@@ -2,9 +2,14 @@ use soroban_sdk::{symbol_short, Address, Env, Vec};
 
 use crate::errors::AccessControlError;
 use crate::types::{
-    AccessControlConfig, MembershipInfo, MultiSigConfig, PendingProposal, ProposalAction, UserRole,
+    AccessControlConfig, MembershipInfo, MultiSigConfig, PendingAdminTransfer, PendingProposal,
+    ProposalAction, UserRole,
 };
 use common_types::run_migrations;
+
+/// Duration that must elapse between proposing and accepting an admin transfer.
+/// Default: 48 hours, expressed in seconds.
+pub const ADMIN_TRANSFER_LOCK: u64 = 48 * 60 * 60;
 
 // ── storage keys ─────────────────────────────────────────────────────────────
 
@@ -20,6 +25,7 @@ enum DataKey {
     Proposal(u64),
     PendingUpgrade,
     StorageVersion,
+    PendingAdmin,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -318,4 +324,82 @@ pub fn migrate_roles_v2(env: &Env, admin: Address) -> Result<(), AccessControlEr
 
 pub fn get_storage_version_view(env: &Env) -> u32 {
     get_storage_version(env)
+}
+
+// ── two-step admin transfer ─────────────────────────────────────────────────────
+
+/// Propose transferring the admin role to `new_admin`. The transfer does not take
+/// effect until `new_admin` explicitly accepts after the [`ADMIN_TRANSFER_LOCK`]
+/// timelock has elapsed. Only one pending transfer can exist at a time — a new
+/// proposal overwrites any existing one.
+pub fn propose_admin_transfer(
+    env: &Env,
+    current_admin: Address,
+    new_admin: Address,
+) -> Result<(), AccessControlError> {
+    assert_not_paused(env)?;
+    require_admin(env, &current_admin)?;
+    let pending = PendingAdminTransfer {
+        address: new_admin.clone(),
+        proposed_at: env.ledger().timestamp(),
+    };
+    env.storage().instance().set(&DataKey::PendingAdmin, &pending);
+    env.events()
+        .publish((symbol_short!("adm_prop"),), new_admin);
+    Ok(())
+}
+
+/// Accept a pending admin transfer. The caller must be the proposed new admin and
+/// the [`ADMIN_TRANSFER_LOCK`] timelock must have elapsed since the proposal.
+/// On success the admin role is transferred and the pending transfer is cleared.
+pub fn accept_admin_transfer(
+    env: &Env,
+    new_admin: Address,
+) -> Result<(), AccessControlError> {
+    assert_not_paused(env)?;
+    new_admin.require_auth();
+    let pending: PendingAdminTransfer = env
+        .storage()
+        .instance()
+        .get(&DataKey::PendingAdmin)
+        .ok_or(AccessControlError::NoPendingTransfer)?;
+    if new_admin != pending.address {
+        return Err(AccessControlError::Unauthorized);
+    }
+    if env.ledger().timestamp() < pending.proposed_at + ADMIN_TRANSFER_LOCK {
+        return Err(AccessControlError::TimelockNotExpired);
+    }
+    env.storage().instance().set(&DataKey::Admin, &new_admin);
+    env.storage().persistent().set(
+        &DataKey::Role(new_admin.clone()),
+        &MembershipInfo {
+            user: new_admin.clone(),
+            role: UserRole::Admin,
+            assigned_at: env.ledger().timestamp(),
+        },
+    );
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events()
+        .publish((symbol_short!("adm_acpt"),), new_admin);
+    Ok(())
+}
+
+/// Cancel a pending admin transfer before it is accepted, clearing the pending
+/// state. Only the current admin may cancel.
+pub fn cancel_admin_transfer(
+    env: &Env,
+    current_admin: Address,
+) -> Result<(), AccessControlError> {
+    require_admin(env, &current_admin)?;
+    if !env.storage().instance().has(&DataKey::PendingAdmin) {
+        return Err(AccessControlError::NoPendingTransfer);
+    }
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events().publish((symbol_short!("adm_cncl"),), ());
+    Ok(())
+}
+
+/// View the current pending admin transfer, if any.
+pub fn get_pending_admin_transfer(env: &Env) -> Option<PendingAdminTransfer> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
 }

@@ -12,4 +12,6 @@ pub enum AccessControlError {
     ThresholdNotMet  = 6,
     TimeLockActive   = 7,
     ContractPaused   = 8,
+    NoPendingTransfer = 9,
+    TimelockNotExpired = 10,
 }
