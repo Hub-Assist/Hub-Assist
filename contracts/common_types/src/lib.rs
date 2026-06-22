@@ -7,8 +7,8 @@ mod types;
 pub use errors::ContractError;
 pub use migration::{get_schema_version, run_migrations, set_schema_version, MigrationStep};
 pub use types::{
-    AttendanceFrequency, DateRange, DayPattern, EntitlementResult, FeatureFlag,
-    MembershipStatus, MetadataValue, PeakHourData, PendingWithdrawal, Subscription,
+    AggregatePeakHourData, AttendanceFrequency, DateRange, DayPattern, EntitlementResult,
+    FeatureFlag, MembershipStatus, MetadataValue, PeakHourData, PendingWithdrawal, Subscription,
     SubscriptionStatus, SubscriptionTier, TierChangeRequest, TierChangeStatus, TierChangeType,
     TierFeature, TierLevel, TierPromotion, TimePeriod, UserAttendanceStats,
 };

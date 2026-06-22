@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, xdr::ToXdr, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, xdr::ToXdr, Address, Bytes, BytesN, Env, String, Vec};
 
 use common_types::{EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
 

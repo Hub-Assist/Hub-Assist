@@ -505,3 +505,172 @@ fn test_remove_role_reverts_to_guest() {
     assert!(!client.check_access(&user, &UserRole::Member));
     assert_eq!(client.try_get_role(&user), Err(Ok(AccessControlError::UserNotFound)));
 }
+
+// ── two-step admin transfer with timelock ─────────────────────────────────────
+
+/// 48 hours in seconds — mirrors `ADMIN_TRANSFER_LOCK` in the contract.
+const ADMIN_TRANSFER_LOCK: u64 = 48 * 60 * 60;
+
+#[test]
+fn test_propose_admin_transfer_records_pending() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &new_admin);
+
+    let pending = client.get_pending_admin_transfer().unwrap();
+    assert_eq!(pending.address, new_admin);
+    assert_eq!(pending.proposed_at, 1_000);
+    // admin is unchanged until acceptance
+    assert!(client.is_admin(&admin));
+    assert!(!client.is_admin(&new_admin));
+}
+
+#[test]
+fn test_propose_admin_transfer_non_admin_returns_unauthorized() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+    let not_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let result = client.try_propose_admin_transfer(&not_admin, &new_admin);
+    assert_eq!(result, Err(Ok(AccessControlError::Unauthorized)));
+}
+
+#[test]
+fn test_accept_before_timelock_returns_timelock_not_expired() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &new_admin);
+
+    // one second before the lock elapses
+    env.ledger().set_timestamp(1_000 + ADMIN_TRANSFER_LOCK - 1);
+    let result = client.try_accept_admin_transfer(&new_admin);
+    assert_eq!(result, Err(Ok(AccessControlError::TimelockNotExpired)));
+    // still old admin
+    assert!(client.is_admin(&admin));
+}
+
+#[test]
+fn test_accept_after_timelock_transfers_admin() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &new_admin);
+
+    env.ledger().set_timestamp(1_000 + ADMIN_TRANSFER_LOCK);
+    client.accept_admin_transfer(&new_admin);
+
+    assert!(client.is_admin(&new_admin));
+    assert!(!client.is_admin(&admin));
+    // new admin has the Admin role recorded
+    assert_eq!(client.get_role(&new_admin).role, UserRole::Admin);
+    // pending transfer cleared
+    assert!(client.get_pending_admin_transfer().is_none());
+    // new admin can perform admin-only actions
+    let user = Address::generate(&env);
+    assert!(client.try_set_role(&new_admin, &user, &UserRole::Member).is_ok());
+}
+
+#[test]
+fn test_accept_by_wrong_caller_returns_unauthorized() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+    let stranger = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &new_admin);
+    env.ledger().set_timestamp(1_000 + ADMIN_TRANSFER_LOCK);
+
+    let result = client.try_accept_admin_transfer(&stranger);
+    assert_eq!(result, Err(Ok(AccessControlError::Unauthorized)));
+    assert!(client.is_admin(&admin));
+}
+
+#[test]
+fn test_accept_without_pending_returns_no_pending_transfer() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+    let result = client.try_accept_admin_transfer(&new_admin);
+    assert_eq!(result, Err(Ok(AccessControlError::NoPendingTransfer)));
+}
+
+#[test]
+fn test_cancel_admin_transfer_clears_pending() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &new_admin);
+    assert!(client.get_pending_admin_transfer().is_some());
+
+    client.cancel_admin_transfer(&admin);
+    assert!(client.get_pending_admin_transfer().is_none());
+
+    // after cancellation, the proposed admin can no longer accept
+    env.ledger().set_timestamp(1_000 + ADMIN_TRANSFER_LOCK);
+    assert_eq!(
+        client.try_accept_admin_transfer(&new_admin),
+        Err(Ok(AccessControlError::NoPendingTransfer))
+    );
+    assert!(client.is_admin(&admin));
+}
+
+#[test]
+fn test_cancel_without_pending_returns_no_pending_transfer() {
+    let env = Env::default();
+    let (admin, client) = setup(&env);
+    let result = client.try_cancel_admin_transfer(&admin);
+    assert_eq!(result, Err(Ok(AccessControlError::NoPendingTransfer)));
+}
+
+#[test]
+fn test_cancel_admin_transfer_non_admin_returns_unauthorized() {
+    let env = Env::default();
+    let (admin, client) = setup(&env);
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&admin, &new_admin);
+
+    let not_admin = Address::generate(&env);
+    let result = client.try_cancel_admin_transfer(&not_admin);
+    assert_eq!(result, Err(Ok(AccessControlError::Unauthorized)));
+    // pending transfer still intact
+    assert!(client.get_pending_admin_transfer().is_some());
+}
+
+#[test]
+fn test_new_proposal_overwrites_existing() {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_000);
+    let (admin, client) = setup(&env);
+    let first = Address::generate(&env);
+    let second = Address::generate(&env);
+
+    client.propose_admin_transfer(&admin, &first);
+    // overwrite with a later proposal
+    env.ledger().set_timestamp(2_000);
+    client.propose_admin_transfer(&admin, &second);
+
+    let pending = client.get_pending_admin_transfer().unwrap();
+    assert_eq!(pending.address, second);
+    assert_eq!(pending.proposed_at, 2_000);
+
+    // the first proposed admin can no longer accept
+    env.ledger().set_timestamp(2_000 + ADMIN_TRANSFER_LOCK);
+    assert_eq!(
+        client.try_accept_admin_transfer(&first),
+        Err(Ok(AccessControlError::Unauthorized))
+    );
+    // the second one can
+    client.accept_admin_transfer(&second);
+    assert!(client.is_admin(&second));
+}

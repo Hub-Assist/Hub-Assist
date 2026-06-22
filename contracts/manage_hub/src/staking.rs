@@ -515,7 +515,7 @@ impl StakingModule {
             / REWARD_PRECISION
     }
 
-    pub fn claim_rewards(env: Env, staker: Address) -> Result<i128, StakingModuleError> {
+    pub fn claim_staking_rewards(env: Env, staker: Address) -> Result<i128, StakingModuleError> {
         staker.require_auth();
         let mut info: StakeInfo = env
             .storage()
