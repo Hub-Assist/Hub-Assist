@@ -30,7 +30,7 @@ pub use membership_token::{
 };
 pub use rewards::{RewardsModule, RewardsModuleClient, StakingError};
 pub use subscription::{SubscriptionModule, SubscriptionModuleClient, SubscriptionFeatureService};
-pub use staking::{StakeInfo, StakingConfig, StakingModule, StakingModuleClient, StakingTier};
+pub use staking::{StakeInfo, StakeKey, StakingConfig, StakingModule, StakingModuleClient, StakingModuleError, StakingTier};
 pub use tier_management::{TierManagementModule, TierManagementModuleClient, TierUpdate};
 pub use validation::{BatchError, BatchValidator};
 pub use upgrade::{UpgradeModule, UpgradeModuleClient};

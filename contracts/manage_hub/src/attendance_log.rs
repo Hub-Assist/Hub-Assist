@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Bytes, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
 use common_types::{AggregatePeakHourData, DateRange};
 
@@ -108,15 +108,16 @@ impl AttendanceLogModule {
             prev_hash: prev_hash.clone(),
         };
 
-        // Compute hash: sha256(timestamp_le_bytes ++ prev_hash)
-        let mut hash_input = Bytes::new(&env);
-        for b in timestamp.to_le_bytes().iter() {
-            hash_input.push_back(*b);
-        }
-        for b in prev_hash.to_array().iter() {
-            hash_input.push_back(*b);
-        }
-        let current_hash: BytesN<32> = env.crypto().sha256(&hash_input).into();
+        // Compute hash: sha256(clock_in ++ clock_out ++ user ++ prev_hash)
+        let mut hash_input = soroban_sdk::Bytes::new(&env);
+        hash_input.extend_from_array(&timestamp.to_le_bytes());
+        // XDR-encode the address into a separate Bytes, then append byte by byte via append
+        let addr_bytes = user_id.clone().to_xdr(&env);
+        hash_input.append(&addr_bytes);
+        let prev_bytes: soroban_sdk::Bytes = prev_hash.into();
+        hash_input.append(&prev_bytes);
+
+        let current_hash = env.crypto().sha256(&hash_input);
         
         // Store the log
         env.storage()
@@ -293,20 +294,19 @@ impl AttendanceLogModule {
             return true;
         }
 
-        let start = from_index;
-        if start >= logs.len() {
+        let start = from_index as usize;
+        if start >= logs.len() as usize {
             return false;
         }
 
         let mut prev_hash = if start == 0 {
             BytesN::from_array(&env, &[0u8; 32])
         } else {
-            logs.get(start - 1).unwrap().prev_hash.clone()
+            logs.get((start - 1) as u32).unwrap().prev_hash.clone()
         };
 
-        let mut i = start;
-        while i < logs.len() {
-            let log = logs.get(i).unwrap();
+        for i in start..logs.len() as usize {
+            let log = logs.get(i as u32).unwrap();
             
             // Verify prev_hash matches
             if log.prev_hash != prev_hash {
@@ -314,15 +314,14 @@ impl AttendanceLogModule {
             }
 
             // Compute expected hash
-            let mut hash_input = Bytes::new(&env);
-            for b in log.timestamp.to_le_bytes().iter() {
-                hash_input.push_back(*b);
-            }
-            for b in prev_hash.to_array().iter() {
-                hash_input.push_back(*b);
-            }
+            let mut hash_input = soroban_sdk::Bytes::new(&env);
+            hash_input.extend_from_array(&log.timestamp.to_le_bytes());
+            let addr_bytes = user_id.clone().to_xdr(&env);
+            hash_input.append(&addr_bytes);
+            let prev_bytes: soroban_sdk::Bytes = prev_hash.into();
+            hash_input.append(&prev_bytes);
+
             prev_hash = env.crypto().sha256(&hash_input).into();
-            i += 1;
         }
 
         true

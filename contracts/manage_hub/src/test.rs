@@ -172,6 +172,8 @@ fn test_stake_below_min_stake_amount_returns_error() {
 
 #[test]
 fn test_unstake_returns_principal_plus_rewards() {
+    // With the cooldown feature, unstake() no longer transfers immediately.
+    // Instead it creates a PendingWithdrawal. Verify the locked amount >= principal.
     let t = TestEnv::new();
     let tid = t.setup_config_and_tier();
     let staker = Address::generate(&t.env);
@@ -180,16 +182,28 @@ fn test_unstake_returns_principal_plus_rewards() {
     t.client().stake(&staker, &1_000, &tid);
     assert_eq!(t.token().balance(&staker), 0);
 
-    // Mint reward tokens to the contract so it can pay principal + rewards
+    // Fund contract for rewards payout.
     t.mint(&t.contract_id, 200);
 
-    // Advance 1 year (365 * 24 * 3600 = 31_536_000 seconds)
+    // Advance 1 year.
     t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 31_536_000);
 
     t.client().unstake(&staker);
 
-    // principal=1000, base_rate=1000bps=10%, multiplier=10000bps=1x
-    // rewards = 1000 * 1000 * 10000 * 31536000 / 31536000 / 100_000_000 = 1
+    // No immediate payout — funds are in the pending withdrawal.
+    assert_eq!(t.token().balance(&staker), 0);
+
+    let pending = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending.len(), 1);
+
+    // Locked amount should be at least the principal.
+    let locked = pending.get(0).unwrap().amount;
+    assert!(locked >= 1_000, "locked amount should be at least principal");
+
+    // Claim after cooldown.
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 31_536_000 + COOLDOWN_SECS + 1);
+    t.client().claim_unstaked(&staker);
+
     let balance = t.token().balance(&staker);
     assert!(balance >= 1_000, "should get at least principal back");
 }
@@ -921,4 +935,237 @@ fn test_cache_invalidated_on_new_log() {
     t.env.ledger().with_mut(|li| li.timestamp = now);
     let after = t.client().aggregate_peak_hours(&t.user, &30, &0);
     assert_eq!(after.peak_arrival_hour, 6, "peak should update to 6 after cache invalidation");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Staking cooldown tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+const COOLDOWN_SECS: u64 = 7 * 24 * 3600; // 7 days — matches DEFAULT_COOLDOWN_SECS
+
+// ── unstake() creates pending withdrawal ─────────────────────────────────────
+
+#[test]
+fn test_unstake_creates_pending_withdrawal_not_immediate_transfer() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 1_000);
+
+    t.client().stake(&staker, &1_000, &tid);
+
+    // Tokens are held by the contract.
+    assert_eq!(t.token().balance(&staker), 0);
+
+    t.client().unstake(&staker);
+
+    // Staker receives NOTHING immediately.
+    assert_eq!(t.token().balance(&staker), 0, "no immediate transfer on unstake");
+
+    // But there is one pending withdrawal.
+    let pending = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending.len(), 1);
+
+    let w = pending.get(0).unwrap();
+    // amount >= principal (may include small reward)
+    assert!(w.amount >= 1_000);
+    // claimable_at = timestamp(1000) + 7 days
+    assert_eq!(w.claimable_at, 1_000 + COOLDOWN_SECS);
+}
+
+#[test]
+fn test_unstake_removes_active_stake_record() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 500);
+
+    t.client().stake(&staker, &500, &tid);
+    t.client().unstake(&staker);
+
+    // Active stake no longer exists.
+    let result = t.client().try_get_stake(&staker);
+    assert!(result.is_err(), "active stake should be removed after unstake");
+}
+
+// ── claim_unstaked() before cooldown panics ───────────────────────────────────
+
+#[test]
+#[should_panic(expected = "cooldown not elapsed")]
+fn test_claim_unstaked_before_cooldown_panics() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 500);
+
+    t.client().stake(&staker, &500, &tid);
+    t.client().unstake(&staker);
+
+    // Advance time by less than cooldown (only 1 day).
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 86_400);
+
+    // Should panic: cooldown not elapsed.
+    t.client().claim_unstaked(&staker);
+}
+
+// ── claim_unstaked() after cooldown transfers tokens ─────────────────────────
+
+#[test]
+fn test_claim_unstaked_after_cooldown_transfers_tokens() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 1_000);
+    // Fund contract for rewards payout.
+    t.mint(&t.contract_id, 200);
+
+    t.client().stake(&staker, &1_000, &tid);
+    t.client().unstake(&staker);
+
+    // Advance time past cooldown.
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + COOLDOWN_SECS + 1);
+
+    t.client().claim_unstaked(&staker);
+
+    // Staker should have received at least the principal.
+    let balance = t.token().balance(&staker);
+    assert!(balance >= 1_000, "staker should receive at least principal");
+
+    // Pending withdrawals list should now be cleared.
+    let pending = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending.len(), 0, "pending withdrawals should be empty after claim");
+}
+
+// ── claim_unstaked() with no pending withdrawals panics ──────────────────────
+
+#[test]
+#[should_panic(expected = "no pending withdrawals")]
+fn test_claim_unstaked_with_no_withdrawals_panics() {
+    let t = TestEnv::new();
+    let staker = Address::generate(&t.env);
+    t.client().claim_unstaked(&staker);
+}
+
+// ── Multiple pending withdrawals accumulate independently ─────────────────────
+
+#[test]
+fn test_multiple_pending_withdrawals_independent_cooldowns() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 3_000);
+    // Fund contract for rewards.
+    t.mint(&t.contract_id, 500);
+
+    // First stake + partial unstake at t=1000.
+    t.client().stake(&staker, &3_000, &tid);
+    t.client().partial_unstake(&staker, &1_000);
+
+    // Advance time and do a second partial unstake at t = 1000 + 1 day.
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 86_400);
+    t.client().partial_unstake(&staker, &1_000);
+
+    // Now we have two pending withdrawals with different claimable_at.
+    let pending = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending.len(), 2);
+
+    let w0 = pending.get(0).unwrap();
+    let w1 = pending.get(1).unwrap();
+    // Each has its own cooldown anchored to when it was created.
+    assert_eq!(w0.claimable_at, 1_000 + COOLDOWN_SECS);
+    assert_eq!(w1.claimable_at, 1_000 + 86_400 + COOLDOWN_SECS);
+
+    // Advance past first cooldown but not second.
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + COOLDOWN_SECS + 1);
+
+    t.client().claim_unstaked(&staker);
+
+    // Only the first withdrawal was claimable; the second remains.
+    let pending_after = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending_after.len(), 1);
+    assert_eq!(pending_after.get(0).unwrap().claimable_at, w1.claimable_at);
+
+    // Advance past second cooldown and claim the rest.
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 86_400 + COOLDOWN_SECS + 1);
+    t.client().claim_unstaked(&staker);
+
+    let pending_final = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending_final.len(), 0);
+}
+
+// ── set_cooldown_days admin-configurable ──────────────────────────────────────
+
+#[test]
+fn test_set_cooldown_days_changes_cooldown() {
+    let t = TestEnv::new();
+    t.client().set_staking_config(&t.admin, &t.default_config());
+
+    // Set cooldown to 1 day.
+    t.client().set_cooldown_days(&t.admin, &1u64);
+
+    assert_eq!(t.client().get_cooldown_secs(), 86_400u64);
+}
+
+#[test]
+fn test_cooldown_applies_configured_duration() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+
+    // Configure a 1-day cooldown.
+    t.client().set_cooldown_days(&t.admin, &1u64);
+
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 500);
+    t.client().stake(&staker, &500, &tid);
+    t.client().unstake(&staker);
+
+    let pending = t.client().get_pending_withdrawals(&staker);
+    assert_eq!(pending.get(0).unwrap().claimable_at, 1_000 + 86_400);
+}
+
+#[test]
+fn test_set_cooldown_days_non_admin_fails() {
+    let t = TestEnv::new();
+    t.client().set_staking_config(&t.admin, &t.default_config());
+    let non_admin = Address::generate(&t.env);
+    let result = t.client().try_set_cooldown_days(&non_admin, &3u64);
+    assert!(result.is_err());
+}
+
+#[test]
+#[should_panic(expected = "cooldown days must be greater than zero")]
+fn test_set_cooldown_days_zero_panics() {
+    let t = TestEnv::new();
+    t.client().set_staking_config(&t.admin, &t.default_config());
+    t.client().set_cooldown_days(&t.admin, &0u64);
+}
+
+// ── Rewards stop accruing after unstake ───────────────────────────────────────
+
+#[test]
+fn test_rewards_stop_accruing_after_unstake() {
+    let t = TestEnv::new();
+    let tid = t.setup_config_and_tier();
+    let staker = Address::generate(&t.env);
+    t.mint(&staker, 10_000);
+    t.mint(&t.contract_id, 5_000);
+
+    t.client().stake(&staker, &10_000, &tid);
+
+    // Advance half a year, then unstake — snapshot the locked amount.
+    let half_year: u64 = 365 * 24 * 3600 / 2;
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + half_year);
+    t.client().unstake(&staker);
+
+    let pending = t.client().get_pending_withdrawals(&staker);
+    let locked_at_unstake = pending.get(0).unwrap().amount;
+
+    // Advance another half year — pending amount must not change (no more accrual).
+    t.env.ledger().with_mut(|li| li.timestamp = 1_000 + 2 * half_year + COOLDOWN_SECS + 1);
+    t.client().claim_unstaked(&staker);
+
+    // The amount received equals locked_at_unstake — no extra rewards after unstake.
+    let balance = t.token().balance(&staker);
+    assert_eq!(balance, locked_at_unstake,
+        "no rewards should accrue during cooldown period");
 }

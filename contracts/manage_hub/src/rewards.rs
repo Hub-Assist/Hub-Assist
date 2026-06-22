@@ -189,8 +189,8 @@ impl RewardsModule {
         }
 
         // Verify Merkle proof
-        let leaf = Self::hash_leaf(&claimant, &amount);
-        if !Self::verify_proof(&leaf, &merkle_root, &proof) {
+        let leaf = Self::hash_leaf(&env, &claimant, &amount);
+        if !Self::verify_proof(&env, &leaf, &merkle_root, &proof) {
             return Err(ContractError::InvalidProof);
         }
 
@@ -220,28 +220,22 @@ impl RewardsModule {
         Ok(())
     }
 
-    /// Hash a leaf node (claimant, amount)
-    fn hash_leaf(_claimant: &Address, _amount: &i128) -> BytesN<32> {
-        // Simplified placeholder - production would hash claimant+amount
-        BytesN::from_array(&_claimant.env(), &[0u8; 32])
+    /// Hash a leaf node (claimant, amount) — placeholder; use proper serialization in production.
+    fn hash_leaf(env: &Env, _claimant: &Address, _amount: &i128) -> BytesN<32> {
+        BytesN::from_array(env, &[0u8; 32])
     }
 
     /// Verify Merkle proof
-    fn verify_proof(leaf: &BytesN<32>, root: &BytesN<32>, proof: &Vec<BytesN<32>>) -> bool {
+    fn verify_proof(env: &Env, leaf: &BytesN<32>, root: &BytesN<32>, proof: &Vec<BytesN<32>>) -> bool {
         let mut current = leaf.clone();
-        
         for proof_element in proof.iter() {
-            // Hash current with proof element
-            current = Self::hash_pair(&current, &proof_element);
+            current = Self::hash_pair(env, &current, &proof_element);
         }
-        
         current == *root
     }
 
-    /// Hash two nodes together
-    fn hash_pair(left: &BytesN<32>, right: &BytesN<32>) -> BytesN<32> {
-        // In production, use Soroban's native crypto (sha256)
-        // For now, return a placeholder
+    /// Hash two nodes together — placeholder.
+    fn hash_pair(env: &Env, left: &BytesN<32>, _right: &BytesN<32>) -> BytesN<32> {
         left.clone()
     }
 }
