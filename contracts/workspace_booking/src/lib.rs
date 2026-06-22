@@ -7,10 +7,11 @@ mod test;
 
 pub(crate) use errors::ContractError;
 pub(crate) use types::{
-    Booking, BookingStatus, TierDiscounts, UnavailabilityReason, Workspace, WorkspaceAvailability,
-    WorkspaceState, WorkspaceTypeInfo, WaitlistEntry,
+    Booking, BookingStatus, TierDiscounts, Workspace, WorkspaceAvailability, WorkspaceState,
+    WorkspaceTypeInfo, WaitlistEntry,
 };
 
+use common_types;
 use soroban_sdk::{
     contract, contractimpl, contracttype, map, symbol_short, vec, Address, BytesN, Env, Map,
     String, Vec,
@@ -338,7 +339,7 @@ impl WorkspaceBooking {
 
         // Emit batch confirmation event with admin address and count
         env.events().publish(
-            (symbol_short!("batch_conf"),),
+            (symbol_short!("batch_ok"),),
             (admin, booking_ids.len() as u32),
         );
 
@@ -492,7 +493,7 @@ impl WorkspaceBooking {
     ) -> Result<(), ContractError> {
         member.require_auth();
         let storage = env.storage().persistent();
-        let mut waitlist: Vec<WaitlistEntry> = storage
+        let waitlist: Vec<WaitlistEntry> = storage
             .get(&DataKey::Waitlist(workspace_id))
             .unwrap_or(vec![&env]);
 
@@ -546,6 +547,16 @@ impl WorkspaceBooking {
             },
         );
         Ok(())
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
+        Self::require_admin(&env, &admin);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
     }
 
     // --- helpers ---

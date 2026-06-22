@@ -1,9 +1,11 @@
 #![no_std]
 
 mod errors;
+pub mod migration;
 mod types;
 
 pub use errors::ContractError;
+pub use migration::{get_schema_version, run_migrations, set_schema_version, MigrationStep};
 pub use types::{
     AttendanceFrequency, DateRange, DayPattern, EntitlementResult, FeatureFlag,
     MembershipStatus, MetadataValue, PeakHourData, PendingWithdrawal, Subscription,
@@ -32,3 +34,6 @@ pub fn require_not_paused(env: &Env) -> Result<(), &'static str> {
 
 #[cfg(any(test, feature = "testutils"))]
 pub mod test_contract;
+
+#[cfg(test)]
+mod migration_tests;

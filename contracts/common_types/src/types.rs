@@ -28,7 +28,7 @@ pub enum FeatureFlag {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum MembershipStatus {
     Active,
     Expired,
@@ -37,7 +37,7 @@ pub enum MembershipStatus {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TierLevel {
     Basic,
     Standard,
@@ -158,7 +158,7 @@ pub struct AggregatePeakHourData {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TimePeriod {
     Daily,
     Weekly,

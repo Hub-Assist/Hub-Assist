@@ -11,6 +11,7 @@ pub(crate) use types::{Escrow, EscrowStatus, Resolution, ArbitrationVote};
 use soroban_sdk::{
     contract, contractimpl, contracttype, token, vec, Address, BytesN, Env, Vec, symbol_short,
 };
+use common_types;
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
 const DISPUTE_TIMEOUT_SECONDS: u64 = 30 * 24 * 3600; // 30 days
@@ -219,7 +220,7 @@ impl PaymentEscrow {
 
         escrow.status = EscrowStatus::Disputed;
         escrow.dispute_timestamp = env.ledger().timestamp();
-        escrow.depositor_evidence_hash = evidence_hash;
+        escrow.depositor_evidence_hash = evidence_hash.clone();
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
         env.events().publish((symbol_short!("dispute"),), (escrow_id, evidence_hash));
@@ -242,9 +243,9 @@ impl PaymentEscrow {
         }
 
         if caller == escrow.depositor {
-            escrow.depositor_evidence_hash = evidence_hash;
+            escrow.depositor_evidence_hash = evidence_hash.clone();
         } else if caller == escrow.beneficiary {
-            escrow.beneficiary_evidence_hash = evidence_hash;
+            escrow.beneficiary_evidence_hash = evidence_hash.clone();
         } else {
             return Err(ContractError::Unauthorized);
         }
@@ -319,7 +320,7 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Released;
-            env.events().publish((symbol_short!("arb_release"),), escrow_id);
+            env.events().publish((symbol_short!("arb_rel"),), escrow_id);
         } else if refund_votes >= majority_threshold {
             token::Client::new(&env, &escrow.payment_token).transfer(
                 &env.current_contract_address(),
@@ -327,7 +328,7 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Refunded;
-            env.events().publish((symbol_short!("arb_refund"),), escrow_id);
+            env.events().publish((symbol_short!("arb_ref"),), escrow_id);
         }
 
         s.set(&DataKey::Escrow(escrow_id), &escrow);
@@ -360,7 +361,7 @@ impl PaymentEscrow {
         escrow.status = EscrowStatus::Refunded;
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("dispute_exp"),), escrow_id);
+        env.events().publish((symbol_short!("disp_exp"),), escrow_id);
         Ok(())
     }
 
@@ -395,7 +396,6 @@ impl PaymentEscrow {
 
         env.events().publish((symbol_short!("auto_rel"), caller), escrow_id);
         Ok(())
-    }
     }
 
     pub fn get_escrow(env: Env, id: u64) -> Result<Escrow, ContractError> {
@@ -458,5 +458,16 @@ impl PaymentEscrow {
             }
         }
         result
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
+        Ok(())
     }
 }
