@@ -129,8 +129,7 @@ impl RewardsModule {
                 .set(&RewardsKey::TotalRewardsPaid(staker.clone()), &new_total);
 
             // Emit event
-            env.events()
-                .publish((symbol_short!("rwrd_clm"),), (staker, pending));
+            publish_event(&env, "manage_hub_rewards", symbol_short!("rwrd_clm"), (symbol_short!("rwrd_clm"),), (staker, pending));
         }
 
         Ok(pending)
@@ -158,10 +157,7 @@ impl RewardsModule {
         storage.set(&RewardsKey::MerkleRoot, &merkle_root);
         storage.set(&RewardsKey::MerkleRootAmount, &total_amount);
         
-        env.events().publish(
-            (symbol_short!("merkle_rt"),),
-            (merkle_root, total_amount),
-        );
+        publish_event(&env, "manage_hub_rewards", symbol_short!("merkle_rt"), (symbol_short!("merkle_rt"),), (merkle_root, total_amount));
         Ok(())
     }
 
@@ -213,10 +209,7 @@ impl RewardsModule {
             &amount,
         );
 
-        env.events().publish(
-            (symbol_short!("claim_rwd"),),
-            (claimant, amount),
-        );
+        publish_event(&env, "manage_hub_rewards", symbol_short!("claim_rwd"), (symbol_short!("claim_rwd"),), (claimant, amount));
         Ok(())
     }
 

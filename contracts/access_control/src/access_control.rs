@@ -4,7 +4,7 @@ use crate::errors::AccessControlError;
 use crate::types::{
     AccessControlConfig, MembershipInfo, MultiSigConfig, PendingProposal, ProposalAction, UserRole,
 };
-use common_types::run_migrations;
+use common_types::{publish_event, run_migrations};
 
 // ── storage keys ─────────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ pub fn initialize(env: &Env, admin: Address, multisig_config: MultiSigConfig) {
         &DataKey::Role(admin.clone()),
         &MembershipInfo { user: admin.clone(), role: UserRole::Admin, assigned_at: env.ledger().timestamp() },
     );
-    env.events().publish((symbol_short!("init"), admin), ());
+    publish_event(&env, "access_control", symbol_short!("init"), (symbol_short!("init"), admin), ());
 }
 
 pub fn set_role(
@@ -115,7 +115,7 @@ pub fn set_role(
         &DataKey::Role(user.clone()),
         &MembershipInfo { user: user.clone(), role: role.clone(), assigned_at: env.ledger().timestamp() },
     );
-    env.events().publish((symbol_short!("set_role"), user), role);
+    publish_event(&env, "access_control", symbol_short!("set_role"), (symbol_short!("set_role"), user), role);
     Ok(())
 }
 
@@ -159,7 +159,7 @@ pub fn remove_role(env: &Env, admin: Address, user: Address) -> Result<(), Acces
         return Err(AccessControlError::UserNotFound);
     }
     env.storage().persistent().remove(&DataKey::Role(user.clone()));
-    env.events().publish((symbol_short!("rm_role"), user), ());
+    publish_event(&env, "access_control", symbol_short!("rm_role"), (symbol_short!("rm_role"), user), ());
     Ok(())
 }
 
@@ -178,7 +178,7 @@ pub fn pause(env: &Env, admin: Address) -> Result<(), AccessControlError> {
     let mut config = load_config(env);
     config.paused = true;
     env.storage().instance().set(&DataKey::Config, &config);
-    env.events().publish((symbol_short!("pause"),), ());
+    publish_event(&env, "access_control", symbol_short!("pause"), (symbol_short!("pause"),), ());
     Ok(())
 }
 
@@ -187,7 +187,7 @@ pub fn unpause(env: &Env, admin: Address) -> Result<(), AccessControlError> {
     let mut config = load_config(env);
     config.paused = false;
     env.storage().instance().set(&DataKey::Config, &config);
-    env.events().publish((symbol_short!("unpause"),), ());
+    publish_event(&env, "access_control", symbol_short!("unpause"), (symbol_short!("unpause"),), ());
     Ok(())
 }
 
@@ -213,7 +213,7 @@ pub fn create_proposal(
         execution_time: now + config.multisig.time_lock_duration,
     };
     env.storage().persistent().set(&DataKey::Proposal(id), &proposal);
-    env.events().publish((symbol_short!("proposal"), proposer), id);
+    publish_event(&env, "access_control", symbol_short!("proposal"), (symbol_short!("proposal"), proposer), id);
     Ok(id)
 }
 
@@ -235,7 +235,7 @@ pub fn approve_proposal(
     }
     proposal.approvals.push_back(approver.clone());
     env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
-    env.events().publish((symbol_short!("approved"), approver), proposal_id);
+    publish_event(&env, "access_control", symbol_short!("approved"), (symbol_short!("approved"), approver), proposal_id);
     Ok(())
 }
 
@@ -270,11 +270,11 @@ pub fn execute_proposal(
                 &DataKey::Role(user.clone()),
                 &MembershipInfo { user: user.clone(), role: role.clone(), assigned_at: env.ledger().timestamp() },
             );
-            env.events().publish((symbol_short!("set_role"), user), role);
+            publish_event(&env, "access_control", symbol_short!("set_role"), (symbol_short!("set_role"), user), role);
         }
         ProposalAction::RemoveRole(user) => {
             env.storage().persistent().remove(&DataKey::Role(user.clone()));
-            env.events().publish((symbol_short!("rm_role"), user), ());
+            publish_event(&env, "access_control", symbol_short!("rm_role"), (symbol_short!("rm_role"), user), ());
         }
         ProposalAction::SetAdmin(new_admin) => {
             env.storage().instance().set(&DataKey::Admin, &new_admin);
@@ -282,7 +282,7 @@ pub fn execute_proposal(
                 &DataKey::Role(new_admin.clone()),
                 &MembershipInfo { user: new_admin.clone(), role: UserRole::Admin, assigned_at: env.ledger().timestamp() },
             );
-            env.events().publish((symbol_short!("set_admin"),), new_admin);
+            publish_event(&env, "access_control", symbol_short!("set_admin"), (symbol_short!("set_admin"),), new_admin);
         }
         ProposalAction::ScheduleUpgrade(new_wasm_hash) => {
             // Store pending upgrade with hash
@@ -292,7 +292,7 @@ pub fn execute_proposal(
             // Run any pending schema migrations post-WASM-update.
             // Add new MigrationStep instances here as the schema evolves.
             run_migrations(env, &[]);
-            env.events().publish((symbol_short!("upg_exec"),), new_wasm_hash);
+            publish_event(&env, "access_control", symbol_short!("upg_exec"), (symbol_short!("upg_exec"),), new_wasm_hash);
         }
     }
     env.storage().persistent().remove(&DataKey::Proposal(proposal_id));
@@ -312,7 +312,7 @@ pub fn migrate_roles_v2(env: &Env, admin: Address) -> Result<(), AccessControlEr
     // In practice, this would be called after collecting all user addresses
     
     env.storage().instance().set(&DataKey::StorageVersion, &2u32);
-    env.events().publish((symbol_short!("migrated"),), ());
+    publish_event(&env, "access_control", symbol_short!("migrated"), (symbol_short!("migrated"),), ());
     Ok(())
 }
 

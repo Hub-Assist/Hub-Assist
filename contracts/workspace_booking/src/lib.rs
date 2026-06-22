@@ -11,7 +11,7 @@ pub(crate) use types::{
     WorkspaceTypeInfo, WaitlistEntry,
 };
 
-use common_types;
+use common_types::publish_event;
 use soroban_sdk::{
     contract, contractimpl, contracttype, map, symbol_short, vec, Address, BytesN, Env, Map,
     String, Vec,
@@ -267,7 +267,7 @@ impl WorkspaceBooking {
         storage.set(&DataKey::MemberBookings(member.clone()), &member_bookings);
         storage.extend_ttl(&DataKey::MemberBookings(member), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("book"), workspace_id), id);
+        publish_event(&env, "workspace_booking", symbol_short!("book"), (symbol_short!("book"), workspace_id), id);
         Ok(id)
     }
 
@@ -292,8 +292,7 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Booking(booking_id), &booking);
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events()
-            .publish((symbol_short!("confirm_b"),), booking_id);
+        publish_event(&env, "workspace_booking", symbol_short!("confirm_b"), (symbol_short!("confirm_b"),), booking_id);
         Ok(())
     }
 
@@ -338,10 +337,7 @@ impl WorkspaceBooking {
         }
 
         // Emit batch confirmation event with admin address and count
-        env.events().publish(
-            (symbol_short!("batch_ok"),),
-            (admin, booking_ids.len() as u32),
-        );
+        publish_event(&env, "workspace_booking", symbol_short!("batch_ok"), (symbol_short!("batch_ok"),), (admin, booking_ids.len() as u32));
 
         Ok(())
     }
@@ -369,7 +365,7 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Booking(booking_id), &booking);
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("cancel"),), booking_id);
+        publish_event(&env, "workspace_booking", symbol_short!("cancel"), (symbol_short!("cancel"),), booking_id);
         Ok(())
     }
 
@@ -472,10 +468,7 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Workspace(workspace_id), &workspace);
         storage.extend_ttl(&DataKey::Workspace(workspace_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish(
-            (symbol_short!("state_chg"), workspace_id),
-            (old_state, new_state),
-        );
+        publish_event(&env, "workspace_booking", symbol_short!("state_chg"), (symbol_short!("state_chg"), workspace_id), (old_state, new_state));
         Ok(())
     }
 

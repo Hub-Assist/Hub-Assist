@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Vec};
 
-use common_types::ContractError;
+use common_types::{publish_event, ContractError};
 
 const TOKEN_TTL: u32 = 17_280 * 365; // ~1 year in ledgers
 
@@ -64,14 +64,14 @@ impl MembershipTokenContract {
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((symbol_short!("paused"),), admin);
+        publish_event(&env, "membership_token", symbol_short!("paused"), (symbol_short!("paused"),), admin);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((symbol_short!("unpaused"),), admin);
+        publish_event(&env, "membership_token", symbol_short!("unpaused"), (symbol_short!("unpaused"),), admin);
         Ok(())
     }
 
@@ -112,7 +112,7 @@ impl MembershipTokenContract {
             .persistent()
             .set(&DataKey::ExpiryIndex(expiry_day), &tokens_on_day);
         
-        env.events().publish((symbol_short!("issue"), owner), id);
+        publish_event(&env, "membership_token", symbol_short!("issue"), (symbol_short!("issue"), owner), id);
         Ok(id)
     }
 
@@ -129,7 +129,7 @@ impl MembershipTokenContract {
         let old_owner = token.owner.clone();
         token.owner = new_owner.clone();
         Self::save_token(&env, &token);
-        env.events().publish((symbol_short!("transfer"), old_owner), (id, new_owner));
+        publish_event(&env, "membership_token", symbol_short!("transfer"), (symbol_short!("transfer"), old_owner), (id, new_owner));
         Ok(())
     }
 
@@ -185,11 +185,8 @@ impl MembershipTokenContract {
         token.status = MembershipStatus::Active;
         Self::save_token(&env, &token);
         
-        env.events().publish(
-            (symbol_short!("status_tr"),),
-            (id, current_status as u32, MembershipStatus::Active as u32),
-        );
-        env.events().publish((symbol_short!("renew"), token.owner), (id, new_expiry_date));
+        publish_event(&env, "membership_token", symbol_short!("status_tr"), (symbol_short!("status_tr"),), (id, current_status as u32, MembershipStatus::Active as u32));
+        publish_event(&env, "membership_token", symbol_short!("renew"), (symbol_short!("renew"), token.owner), (id, new_expiry_date));
         Ok(())
     }
 
@@ -205,11 +202,8 @@ impl MembershipTokenContract {
         token.status = MembershipStatus::Revoked;
         Self::save_token(&env, &token);
         
-        env.events().publish(
-            (symbol_short!("status_tr"),),
-            (id, current_status as u32, MembershipStatus::Revoked as u32),
-        );
-        env.events().publish((symbol_short!("revoke"), token.owner), id);
+        publish_event(&env, "membership_token", symbol_short!("status_tr"), (symbol_short!("status_tr"),), (id, current_status as u32, MembershipStatus::Revoked as u32));
+        publish_event(&env, "membership_token", symbol_short!("revoke"), (symbol_short!("revoke"), token.owner), id);
         Ok(())
     }
 
@@ -294,7 +288,7 @@ impl MembershipTokenContract {
                 status: MembershipStatus::Active,
             };
             Self::save_token(&env, &token);
-            env.events().publish((symbol_short!("issue"), p.owner.clone()), id);
+            publish_event(&env, "membership_token", symbol_short!("issue"), (symbol_short!("issue"), p.owner.clone()), id);
             ids.push_back(id);
         }
         Ok(ids)
@@ -317,7 +311,7 @@ impl MembershipTokenContract {
             let old_owner = token.owner.clone();
             token.owner = p.new_owner.clone();
             Self::save_token(&env, &token);
-            env.events().publish((symbol_short!("transfer"), old_owner), (p.id, p.new_owner));
+            publish_event(&env, "membership_token", symbol_short!("transfer"), (symbol_short!("transfer"), old_owner), (p.id, p.new_owner));
         }
         Ok(())
     }

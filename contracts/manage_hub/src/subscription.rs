@@ -1,6 +1,6 @@
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
-use common_types::{EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
+use common_types::{publish_event, EntitlementResult, FeatureFlag, Subscription, SubscriptionStatus, SubscriptionTier, TierLevel};
 
 // ── Pause policy constants ─────────────────────────────────────────────────
 const MAX_PAUSES: u32 = 3;
@@ -89,8 +89,7 @@ impl SubscriptionFeatureService {
         env.storage()
             .persistent()
             .set(&SubKey::TierFeatures(tier.clone()), &features);
-        env.events()
-            .publish((symbol_short!("tier_feat"),), (tier, features.len()));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("tier_feat"), (symbol_short!("tier_feat"),), (tier, features.len()));
     }
 }
 
@@ -156,8 +155,7 @@ impl SubscriptionModule {
             .persistent()
             .set(&SubKey::Subscription(user.clone()), &sub);
 
-        env.events()
-            .publish((symbol_short!("sub_new"),), (user, tier_id, amount));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("sub_new"), (symbol_short!("sub_new"),), (user, tier_id, amount));
 
         sub
     }
@@ -183,7 +181,7 @@ impl SubscriptionModule {
         );
         sub.status = SubscriptionStatus::Cancelled;
         Self::save(&env, &user, &sub);
-        env.events().publish((symbol_short!("sub_cncl"),), (user,));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("sub_cncl"), (symbol_short!("sub_cncl"),), (user,));
     }
 
     // ── Pause ──────────────────────────────────────────────────────────
@@ -210,8 +208,7 @@ impl SubscriptionModule {
         sub.pause_reason = reason.clone();
         sub.pause_count += 1;
         Self::save(&env, &user, &sub);
-        env.events()
-            .publish((symbol_short!("sub_paus"),), (user, reason));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("sub_paus"), (symbol_short!("sub_paus"),), (user, reason));
     }
 
     // ── Resume ─────────────────────────────────────────────────────────
@@ -230,7 +227,7 @@ impl SubscriptionModule {
         sub.paused_at = 0;
         sub.pause_reason = String::from_str(&env, "");
         Self::save(&env, &user, &sub);
-        env.events().publish((symbol_short!("sub_res"),), (user,));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("sub_res"), (symbol_short!("sub_res"),), (user,));
     }
 
     // ── Renew ──────────────────────────────────────────────────────────
@@ -253,8 +250,7 @@ impl SubscriptionModule {
         sub.expires_at += sub.billing_cycle;
         sub.status = SubscriptionStatus::Active;
         Self::save(&env, &user, &sub);
-        env.events()
-            .publish((symbol_short!("sub_renw"),), (user, sub.expires_at));
+        publish_event(&env, "manage_hub_subscription", symbol_short!("sub_renw"), (symbol_short!("sub_renw"),), (user, sub.expires_at));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────

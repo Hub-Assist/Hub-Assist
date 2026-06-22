@@ -1,0 +1,80 @@
+contracts/README.md:238:Events are published via `env.events().publish(topics, data)`.
+contracts/access_control/src/access_control.rs:103:    env.events().publish((symbol_short!("init"), admin), ());
+contracts/access_control/src/access_control.rs:118:    env.events().publish((symbol_short!("set_role"), user), role);
+contracts/access_control/src/access_control.rs:162:    env.events().publish((symbol_short!("rm_role"), user), ());
+contracts/access_control/src/access_control.rs:181:    env.events().publish((symbol_short!("pause"),), ());
+contracts/access_control/src/access_control.rs:190:    env.events().publish((symbol_short!("unpause"),), ());
+contracts/access_control/src/access_control.rs:216:    env.events().publish((symbol_short!("proposal"), proposer), id);
+contracts/access_control/src/access_control.rs:238:    env.events().publish((symbol_short!("approved"), approver), proposal_id);
+contracts/access_control/src/access_control.rs:273:            env.events().publish((symbol_short!("set_role"), user), role);
+contracts/access_control/src/access_control.rs:277:            env.events().publish((symbol_short!("rm_role"), user), ());
+contracts/access_control/src/access_control.rs:285:            env.events().publish((symbol_short!("set_admin"),), new_admin);
+contracts/access_control/src/access_control.rs:295:            env.events().publish((symbol_short!("upg_exec"),), new_wasm_hash);
+contracts/access_control/src/access_control.rs:315:    env.events().publish((symbol_short!("migrated"),), ());
+contracts/common_types.rs:26:    env.events().publish(topics, data);
+contracts/manage_hub/src/allowance.rs:108:            .publish((symbol_short!("xfer_from"),), (spender, from, to, token_id));
+contracts/manage_hub/src/allowance.rs:124:            .publish((symbol_short!("revoke_al"),), (owner, spender, token_id));
+contracts/manage_hub/src/allowance.rs:51:            .publish((symbol_short!("approve"),), (owner, spender, token_id, expiry));
+contracts/manage_hub/src/attendance_log.rs:160:                    .publish((symbol_short!("clk_in"),), (user_id.clone(), timestamp));
+contracts/manage_hub/src/attendance_log.rs:164:                    .publish((symbol_short!("clk_out"),), (user_id.clone(), timestamp));
+contracts/manage_hub/src/batch.rs:40:            .publish((symbol_short!("bat_mint"),), (batch_size, timestamp));
+contracts/manage_hub/src/batch.rs:56:            .publish((symbol_short!("bat_xfr"),), (batch_size, timestamp));
+contracts/manage_hub/src/batch.rs:87:            .publish((symbol_short!("bat_upd"),), (batch_size, timestamp));
+contracts/manage_hub/src/membership_token.rs:121:            .publish((symbol_short!("transfer"),), (id, old_user, new_user));
+contracts/manage_hub/src/membership_token.rs:141:        env.events().publish((symbol_short!("revoked"),), (id,));
+contracts/manage_hub/src/membership_token.rs:172:            .publish((symbol_short!("renewed"),), (id, new_expiry));
+contracts/manage_hub/src/membership_token.rs:195:                .publish((symbol_short!("issued"),), (p.id.clone(), p.user.clone(), p.expiry_date));
+contracts/manage_hub/src/membership_token.rs:219:                .publish((symbol_short!("transfer"),), (p.id.clone(), old_user, p.new_user.clone()));
+contracts/manage_hub/src/membership_token.rs:63:            .publish((symbol_short!("set_admin"),), (admin,));
+contracts/manage_hub/src/membership_token.rs:87:            .publish((symbol_short!("issued"),), (id, user, expiry_date));
+contracts/manage_hub/src/rewards.rs:133:                .publish((symbol_short!("rwrd_clm"),), (staker, pending));
+contracts/manage_hub/src/rewards.rs:161:        env.events().publish(
+contracts/manage_hub/src/rewards.rs:216:        env.events().publish(
+contracts/manage_hub/src/staking.rs:107:            .publish((symbol_short!("tier_add"),), (tier_id,));
+contracts/manage_hub/src/staking.rs:120:            .publish((symbol_short!("cd_set"),), (admin, days));
+contracts/manage_hub/src/staking.rs:228:            .publish((symbol_short!("staked"),), (staker, amount, tier_id));
+contracts/manage_hub/src/staking.rs:293:            .publish((symbol_short!("ust_pend"),), (staker, claimable_at));
+contracts/manage_hub/src/staking.rs:353:            .publish((symbol_short!("ust_clmd"),), (staker, claimable_total));
+contracts/manage_hub/src/staking.rs:392:            .publish((symbol_short!("emrg_ust"),), (staker, payout, penalty));
+contracts/manage_hub/src/staking.rs:469:            .publish((symbol_short!("pust_pend"),), (staker, unstake_amount, claimable_at));
+contracts/manage_hub/src/staking.rs:562:            .publish((symbol_short!("rwrd_clm"),), (staker, rewards));
+contracts/manage_hub/src/staking.rs:88:            .publish((symbol_short!("cfg_set"),), (admin,));
+contracts/manage_hub/src/subscription.rs:160:            .publish((symbol_short!("sub_new"),), (user, tier_id, amount));
+contracts/manage_hub/src/subscription.rs:186:        env.events().publish((symbol_short!("sub_cncl"),), (user,));
+contracts/manage_hub/src/subscription.rs:214:            .publish((symbol_short!("sub_paus"),), (user, reason));
+contracts/manage_hub/src/subscription.rs:233:        env.events().publish((symbol_short!("sub_res"),), (user,));
+contracts/manage_hub/src/subscription.rs:257:            .publish((symbol_short!("sub_renw"),), (user, sub.expires_at));
+contracts/manage_hub/src/subscription.rs:93:            .publish((symbol_short!("tier_feat"),), (tier, features.len()));
+contracts/manage_hub/src/tier_management.rs:110:            .publish((symbol_short!("tier_upd"),), (tier_id,));
+contracts/manage_hub/src/tier_management.rs:130:            .publish((symbol_short!("tier_dea"),), (tier_id,));
+contracts/manage_hub/src/tier_management.rs:220:            .publish((symbol_short!("tier_req"),), (user, new_tier_id));
+contracts/manage_hub/src/tier_management.rs:252:            .publish((symbol_short!("tier_apr"),), (request.member, request.to_tier_id));
+contracts/manage_hub/src/tier_management.rs:276:            .publish((symbol_short!("tier_rej"),), (request.member,));
+contracts/manage_hub/src/tier_management.rs:316:            .publish((symbol_short!("promo_cr"),), (code, promo.discount_bps));
+contracts/manage_hub/src/tier_management.rs:349:            .publish((symbol_short!("promo_ap"),), (user, code, discounted_price));
+contracts/manage_hub/src/tier_management.rs:73:            .publish((symbol_short!("tier_crt"),), (tier_id, tier.name));
+contracts/membership_token/src/lib.rs:115:        env.events().publish((symbol_short!("issue"), owner), id);
+contracts/membership_token/src/lib.rs:132:        env.events().publish((symbol_short!("transfer"), old_owner), (id, new_owner));
+contracts/membership_token/src/lib.rs:188:        env.events().publish(
+contracts/membership_token/src/lib.rs:192:        env.events().publish((symbol_short!("renew"), token.owner), (id, new_expiry_date));
+contracts/membership_token/src/lib.rs:208:        env.events().publish(
+contracts/membership_token/src/lib.rs:212:        env.events().publish((symbol_short!("revoke"), token.owner), id);
+contracts/membership_token/src/lib.rs:297:            env.events().publish((symbol_short!("issue"), p.owner.clone()), id);
+contracts/membership_token/src/lib.rs:320:            env.events().publish((symbol_short!("transfer"), old_owner), (p.id, p.new_owner));
+contracts/membership_token/src/lib.rs:67:        env.events().publish((symbol_short!("paused"),), admin);
+contracts/membership_token/src/lib.rs:74:        env.events().publish((symbol_short!("unpaused"),), admin);
+contracts/payment_escrow/src/lib.rs:226:        env.events().publish((symbol_short!("dispute"),), (escrow_id, evidence_hash));
+contracts/payment_escrow/src/lib.rs:255:        env.events().publish((symbol_short!("evidence"),), (escrow_id, caller, evidence_hash));
+contracts/payment_escrow/src/lib.rs:323:            env.events().publish((symbol_short!("arb_rel"),), escrow_id);
+contracts/payment_escrow/src/lib.rs:331:            env.events().publish((symbol_short!("arb_ref"),), escrow_id);
+contracts/payment_escrow/src/lib.rs:336:        env.events().publish((symbol_short!("vote"),), (escrow_id, arbitrator, decision));
+contracts/payment_escrow/src/lib.rs:364:        env.events().publish((symbol_short!("disp_exp"),), escrow_id);
+contracts/payment_escrow/src/lib.rs:397:        env.events().publish((symbol_short!("auto_rel"), caller), escrow_id);
+contracts/payment_escrow/src/lib.rs:70:        env.events().publish((symbol_short!("paused"),), admin);
+contracts/payment_escrow/src/lib.rs:77:        env.events().publish((symbol_short!("unpaused"),), admin);
+contracts/workspace_booking/src/lib.rs:118:            .publish((symbol_short!("type_reg"), caller), type_id);
+contracts/workspace_booking/src/lib.rs:270:        env.events().publish((symbol_short!("book"), workspace_id), id);
+contracts/workspace_booking/src/lib.rs:296:            .publish((symbol_short!("confirm_b"),), booking_id);
+contracts/workspace_booking/src/lib.rs:341:        env.events().publish(
+contracts/workspace_booking/src/lib.rs:372:        env.events().publish((symbol_short!("cancel"),), booking_id);
+contracts/workspace_booking/src/lib.rs:475:        env.events().publish(
