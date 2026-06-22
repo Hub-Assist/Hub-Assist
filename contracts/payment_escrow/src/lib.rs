@@ -11,7 +11,7 @@ pub(crate) use types::{Escrow, EscrowStatus, Resolution, ArbitrationVote};
 use soroban_sdk::{
     contract, contractimpl, contracttype, token, vec, Address, BytesN, Env, Vec, symbol_short,
 };
-use common_types;
+use common_types::publish_event;
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
 const DISPUTE_TIMEOUT_SECONDS: u64 = 30 * 24 * 3600; // 30 days
@@ -67,14 +67,14 @@ impl PaymentEscrow {
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((symbol_short!("paused"),), admin);
+        publish_event(&env, "payment_escrow", symbol_short!("paused"), (symbol_short!("paused"),), admin);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((symbol_short!("unpaused"),), admin);
+        publish_event(&env, "payment_escrow", symbol_short!("unpaused"), (symbol_short!("unpaused"),), admin);
         Ok(())
     }
 
@@ -223,7 +223,7 @@ impl PaymentEscrow {
         escrow.depositor_evidence_hash = evidence_hash.clone();
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("dispute"),), (escrow_id, evidence_hash));
+        publish_event(&env, "payment_escrow", symbol_short!("dispute"), (symbol_short!("dispute"),), (escrow_id, evidence_hash));
         Ok(())
     }
 
@@ -252,7 +252,7 @@ impl PaymentEscrow {
 
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("evidence"),), (escrow_id, caller, evidence_hash));
+        publish_event(&env, "payment_escrow", symbol_short!("evidence"), (symbol_short!("evidence"),), (escrow_id, caller, evidence_hash));
         Ok(())
     }
 
@@ -320,7 +320,7 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Released;
-            env.events().publish((symbol_short!("arb_rel"),), escrow_id);
+            publish_event(&env, "payment_escrow", symbol_short!("arb_rel"), (symbol_short!("arb_rel"),), escrow_id);
         } else if refund_votes >= majority_threshold {
             token::Client::new(&env, &escrow.payment_token).transfer(
                 &env.current_contract_address(),
@@ -328,12 +328,12 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Refunded;
-            env.events().publish((symbol_short!("arb_ref"),), escrow_id);
+            publish_event(&env, "payment_escrow", symbol_short!("arb_ref"), (symbol_short!("arb_ref"),), escrow_id);
         }
 
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("vote"),), (escrow_id, arbitrator, decision));
+        publish_event(&env, "payment_escrow", symbol_short!("vote"), (symbol_short!("vote"),), (escrow_id, arbitrator, decision));
         Ok(())
     }
 
@@ -361,7 +361,7 @@ impl PaymentEscrow {
         escrow.status = EscrowStatus::Refunded;
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("disp_exp"),), escrow_id);
+        publish_event(&env, "payment_escrow", symbol_short!("disp_exp"), (symbol_short!("disp_exp"),), escrow_id);
         Ok(())
     }
 
@@ -394,7 +394,7 @@ impl PaymentEscrow {
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("auto_rel"), caller), escrow_id);
+        publish_event(&env, "payment_escrow", symbol_short!("auto_rel"), (symbol_short!("auto_rel"), caller), escrow_id);
         Ok(())
     }
 

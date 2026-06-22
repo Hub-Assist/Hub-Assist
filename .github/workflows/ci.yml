@@ -139,6 +139,15 @@ jobs:
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+      - name: Contracts / Event schema verification
+        run: |
+          set -e
+          raw=$(grep -R --line-number "env.events().publish" contracts | grep -vE 'contracts/common_types\.rs|contracts/common_types/src/lib\.rs' || true)
+          if [ -n "$raw" ]; then
+            echo "Raw direct env.events().publish found in contracts. Use common_types::publish_event instead."
+            echo "$raw"
+            exit 1
+          fi
       - run: cargo test --package manage_hub --package common_types
 
   contract-build:

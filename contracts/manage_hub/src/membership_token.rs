@@ -1,6 +1,6 @@
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Vec};
 
-use common_types::MembershipStatus;
+use common_types::{publish_event, MembershipStatus};
 
 // ── Storage TTL constants (in ledgers; ~5s/ledger on Stellar) ──────────────
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -117,8 +117,7 @@ impl MembershipTokenContract {
             .persistent()
             .set(&DataKey::Token(id.clone()), &token);
 
-        env.events()
-            .publish((symbol_short!("transfer"),), (id, old_user, new_user));
+        publish_event(&env, "manage_hub_membership_token", symbol_short!("transfer"), (symbol_short!("transfer"),), (id, old_user, new_user));
     }
 
     // ── Revoke ─────────────────────────────────────────────────────────
@@ -138,7 +137,7 @@ impl MembershipTokenContract {
             .persistent()
             .set(&DataKey::Token(id.clone()), &token);
 
-        env.events().publish((symbol_short!("revoked"),), (id,));
+        publish_event(&env, "manage_hub_membership_token", symbol_short!("revoked"), (symbol_short!("revoked"),), (id,));
     }
 
     // ── Renew ──────────────────────────────────────────────────────────
