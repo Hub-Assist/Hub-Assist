@@ -142,6 +142,21 @@ pub struct PeakHourData {
     pub occupancy_count: u32,
 }
 
+/// Aggregate peak-hour analytics for on-chain consumption.
+/// Returned by `AttendanceLogModule::aggregate_peak_hours`.
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
+pub struct AggregatePeakHourData {
+    /// UTC hour (0-23) adjusted for the user's timezone offset that had the most clock-ins.
+    pub peak_arrival_hour: u32,
+    /// UTC hour (0-23) adjusted for the user's timezone offset that had the most clock-outs.
+    pub peak_departure_hour: u32,
+    /// Average session duration in minutes across the analysis window.
+    pub avg_session_duration_minutes: u32,
+    /// Sliding window in days that was used (≤ 90).
+    pub window_days: u32,
+}
+
 #[contracttype]
 #[derive(Clone, PartialEq)]
 pub enum TimePeriod {

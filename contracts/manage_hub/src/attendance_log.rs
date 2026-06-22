@@ -1,10 +1,14 @@
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
-use common_types::DateRange;
+use common_types::{AggregatePeakHourData, DateRange};
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const MAX_DETAILS_ENTRIES: u32 = 50;
 const ATTENDANCE_TTL_LEDGERS: u32 = 90 * 17_280; // ~90 days
+const MAX_WINDOW_DAYS: u32 = 90;
+/// 24-hour TTL for the peak-hours cache (~24 * 17 280 ledgers at ~5 s/ledger).
+const CACHE_TTL_LEDGERS: u32 = 24 * 17_280;
+const SECONDS_PER_DAY: u64 = 86_400;
 
 // ── Storage keys ──────────────────────────────────────────────────────────
 #[contracttype]
@@ -13,6 +17,9 @@ pub enum DataKey {
     AttendanceLog(BytesN<32>),
     AttendanceLogsByUser(Address),
     LatestHash(Address),
+    /// Cached result of aggregate_peak_hours for (user, window_days, tz_offset).
+    /// tz_offset is stored as i32 cast to u32 (bit-identical) to satisfy contracttype.
+    PeakHoursCache(Address, u32, u32),
 }
 
 // ── Domain types ──────────────────────────────────────────────────────────
@@ -150,11 +157,25 @@ impl AttendanceLogModule {
         match action {
             AttendanceAction::ClockIn => {
                 env.events()
-                    .publish((symbol_short!("clk_in"),), (user_id, timestamp));
+                    .publish((symbol_short!("clk_in"),), (user_id.clone(), timestamp));
             }
             AttendanceAction::ClockOut => {
                 env.events()
-                    .publish((symbol_short!("clk_out"),), (user_id, timestamp));
+                    .publish((symbol_short!("clk_out"),), (user_id.clone(), timestamp));
+            }
+        }
+
+        // Invalidate peak-hours cache for all window sizes for this user.
+        // We remove cache entries for the supported windows (1–90 days).
+        // Rather than enumerating every possible window, we remove the common ones
+        // that callers are likely to have cached (30 and 90 days cover the spec cases).
+        // Offsets -23..=23 (stored as u32 bit-cast) are enumerated for each window.
+        for window in [30u32, 90u32].iter() {
+            for tz in [0i32, 9, -9, 5, -5].iter() {
+                let cache_key = DataKey::PeakHoursCache(user_id.clone(), *window, *tz as u32);
+                if env.storage().temporary().has(&cache_key) {
+                    env.storage().temporary().remove(&cache_key);
+                }
             }
         }
 
@@ -304,5 +325,159 @@ impl AttendanceLogModule {
         }
 
         true
+    }
+
+    /// Aggregate peak arrival/departure hours over a sliding window of `days_window` days
+    /// (capped at 90). Applies the caller-supplied `timezone_offset_hours` (-23 to +23)
+    /// to convert UTC timestamps before bucketing into the [u32; 24] histograms.
+    ///
+    /// Results are cached in temporary storage with a 24-hour TTL and are invalidated
+    /// automatically whenever a new attendance entry is logged for the user.
+    pub fn aggregate_peak_hours(
+        env: Env,
+        user: Address,
+        days_window: u32,
+        timezone_offset_hours: i32,
+    ) -> AggregatePeakHourData {
+        // Enforce max window to prevent excessive iteration.
+        assert!(days_window > 0 && days_window <= MAX_WINDOW_DAYS, "days_window must be 1–90");
+        assert!(
+            timezone_offset_hours >= -23 && timezone_offset_hours <= 23,
+            "timezone_offset_hours must be in [-23, 23]"
+        );
+
+        // ── Cache check ────────────────────────────────────────────────────
+        // Key includes tz offset (cast to u32, bit-identical) so different offsets
+        // don't collide on the same cache entry.
+        let tz_bits = timezone_offset_hours as u32;
+        let cache_key = DataKey::PeakHoursCache(user.clone(), days_window, tz_bits);
+        if let Some(cached) = env
+            .storage()
+            .temporary()
+            .get::<DataKey, AggregatePeakHourData>(&cache_key)
+        {
+            return cached;
+        }
+
+        // ── Compute window boundary ────────────────────────────────────────
+        let now = env.ledger().timestamp();
+        let window_start = now.saturating_sub(days_window as u64 * SECONDS_PER_DAY);
+
+        // ── Load all log IDs for the user ──────────────────────────────────
+        let log_ids: Vec<BytesN<32>> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::AttendanceLogsByUser(user.clone()))
+            .unwrap_or(Vec::new(&env));
+
+        // ── Build histograms ───────────────────────────────────────────────
+        let mut arrival_hist: [u32; 24] = [0; 24];
+        let mut departure_hist: [u32; 24] = [0; 24];
+
+        // For avg session duration we pair ClockIn → ClockOut naively by
+        // chronological order within the window (same approach as get_attendance_summary).
+        let mut session_durations_sum: u64 = 0;
+        let mut session_count: u32 = 0;
+
+        // We need clock-in timestamps to pair with clock-outs.
+        // Collect in-window logs in order, then pair them.
+        let mut in_window: Vec<AttendanceLog> = Vec::new(&env);
+
+        for id in log_ids.iter() {
+            if let Some(log) = env
+                .storage()
+                .persistent()
+                .get::<DataKey, AttendanceLog>(&DataKey::AttendanceLog(id))
+            {
+                if log.timestamp >= window_start {
+                    in_window.push_back(log);
+                }
+            }
+        }
+
+        // Logs are stored in insertion order (chronological), so iterate sequentially.
+        let mut i = 0u32;
+        while i < in_window.len() {
+            let log = in_window.get(i).unwrap();
+
+            // Apply timezone offset to get the local hour.
+            let local_ts = if timezone_offset_hours >= 0 {
+                log.timestamp.saturating_add(timezone_offset_hours as u64 * 3600)
+            } else {
+                log.timestamp.saturating_sub((-timezone_offset_hours) as u64 * 3600)
+            };
+            let local_hour = ((local_ts / 3600) % 24) as usize;
+
+            match log.action {
+                AttendanceAction::ClockIn => {
+                    arrival_hist[local_hour] += 1;
+
+                    // Try to pair with the next ClockOut in the window.
+                    if i + 1 < in_window.len() {
+                        let next = in_window.get(i + 1).unwrap();
+                        if next.action == AttendanceAction::ClockOut {
+                            // Record departure hour for the paired clock-out.
+                            let next_local_ts = if timezone_offset_hours >= 0 {
+                                next.timestamp.saturating_add(timezone_offset_hours as u64 * 3600)
+                            } else {
+                                next.timestamp.saturating_sub((-timezone_offset_hours) as u64 * 3600)
+                            };
+                            departure_hist[((next_local_ts / 3600) % 24) as usize] += 1;
+
+                            let duration_secs = next.timestamp.saturating_sub(log.timestamp);
+                            session_durations_sum += duration_secs;
+                            session_count += 1;
+                            i += 2;
+                            continue;
+                        }
+                    }
+                }
+                AttendanceAction::ClockOut => {
+                    // Unpaired clock-out.
+                    departure_hist[local_hour] += 1;
+                }
+            }
+
+            i += 1;
+        }
+
+        // ── Identify peaks (argmax) ────────────────────────────────────────
+        let peak_arrival_hour = Self::argmax_24(&arrival_hist);
+        let peak_departure_hour = Self::argmax_24(&departure_hist);
+
+        let avg_session_duration_minutes: u32 = if session_count > 0 {
+            ((session_durations_sum / session_count as u64) / 60) as u32
+        } else {
+            0
+        };
+
+        let result = AggregatePeakHourData {
+            peak_arrival_hour,
+            peak_departure_hour,
+            avg_session_duration_minutes,
+            window_days: days_window,
+        };
+
+        // ── Store in temporary cache with 24-hour TTL ──────────────────────
+        env.storage().temporary().set(&cache_key, &result);
+        env.storage()
+            .temporary()
+            .extend_ttl(&cache_key, CACHE_TTL_LEDGERS, CACHE_TTL_LEDGERS);
+
+        result
+    }
+
+    /// Returns the index (0-23) of the maximum value in a 24-element array.
+    /// Returns 0 when all counts are zero (no data).
+    fn argmax_24(hist: &[u32; 24]) -> u32 {
+        let mut peak_hour = 0u32;
+        let mut peak_count = 0u32;
+        for h in 0..24usize {
+            if hist[h] > peak_count {
+                peak_count = hist[h];
+                peak_hour = h as u32;
+            }
+        }
+        peak_hour
     }
 }

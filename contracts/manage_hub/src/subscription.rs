@@ -53,13 +53,14 @@ impl SubscriptionFeatureService {
                 .storage()
                 .persistent()
                 .get(&SubKey::TierFeatures(tier.level.clone()))
-                .unwrap_or(vec![&env]);
+                .unwrap_or(Vec::new(&env));
 
             let has_access = features.iter().any(|f| f == feature);
+            let tier_level = tier.level;
 
             EntitlementResult {
                 has_access,
-                tier: tier.level,
+                tier: tier_level,
                 feature,
                 reason: if has_access {
                     String::from_str(&env, "feature enabled for tier")
@@ -129,7 +130,15 @@ impl SubscriptionModule {
 
         let now = env.ledger().timestamp();
         let sub = Subscription {
-            id: env.crypto().sha256(&env.ledger().sequence().to_xdr(&env)).into(),
+            id: {
+                let seq = env.ledger().sequence();
+                let seq_bytes = seq.to_le_bytes();
+                let mut b = Bytes::new(&env);
+                for byte in seq_bytes.iter() {
+                    b.push_back(*byte);
+                }
+                env.crypto().sha256(&b).into()
+            },
             user: user.clone(),
             payment_token: payment_token.clone(),
             amount,
