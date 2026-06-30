@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { User } from '../../users/user.entity';
 import { Workspace } from '../../workspaces/workspace.entity';
+import { Amenity } from '../../workspaces/amenity.entity';
 import { Booking } from '../../bookings/booking.entity';
 import { NewsletterSubscriber } from '../../newsletter/newsletter-subscriber.entity';
 import { ContactMessage } from '../../contact/contact-message.entity';
@@ -9,6 +10,7 @@ import { RefreshToken } from '../../auth/refresh-token.entity';
 import { WebAuthnCredential } from '../../auth/webauthn-credential.entity';
 import { Attendance } from '../../attendance/attendance.entity';
 import { seedUsers } from './user.seed';
+import { seedAmenities } from './amenity.seed';
 import { seedWorkspaces } from './workspace.seed';
 import { seedBookings } from './booking.seed';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +19,7 @@ const dataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   synchronize: false,
-  entities: [User, Workspace, Booking, NewsletterSubscriber, ContactMessage, RefreshToken, WebAuthnCredential, Attendance],
+  entities: [User, Workspace, Amenity, Booking, NewsletterSubscriber, ContactMessage, RefreshToken, WebAuthnCredential, Attendance],
 });
 
 async function seedNewsletter(ds: DataSource): Promise<void> {
@@ -72,6 +74,7 @@ async function main() {
 
   try {
     const users = await seedUsers(dataSource);
+    await seedAmenities(dataSource);
     const workspaces = await seedWorkspaces(dataSource);
     await seedBookings(dataSource, users, workspaces);
     await seedNewsletter(dataSource);

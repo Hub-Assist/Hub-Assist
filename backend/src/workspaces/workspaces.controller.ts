@@ -69,14 +69,18 @@ export class WorkspacesController {
   @ApiQuery({ name: 'limit', type: Number, required: false, example: 10 })
   @ApiQuery({ name: 'type', enum: WorkspaceType, required: false })
   @ApiQuery({ name: 'availability', enum: WorkspaceAvailability, required: false })
+  @ApiQuery({ name: 'amenities', type: String, isArray: true, required: false })
+  @ApiQuery({ name: 'amenityMatch', enum: ['all', 'any'], required: false })
   @ApiResponse({ status: 200, description: 'Workspaces retrieved successfully' })
   findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('type') type?: WorkspaceType,
     @Query('availability') availability?: WorkspaceAvailability,
+    @Query('amenities') amenities?: string[],
+    @Query('amenityMatch') amenityMatch: 'all' | 'any' = 'all',
   ) {
-    return this.service.findAll(page, limit, type, availability);
+    return this.service.findAll(page, limit, type, availability, amenities, amenityMatch);
   }
 
   @Get(':id')
