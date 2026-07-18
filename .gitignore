@@ -4,6 +4,7 @@ dist/
 .next/
 .env
 *.env.local
+*.tsbuildinfo
 
 # Rust
 target/
