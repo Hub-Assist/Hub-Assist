@@ -27,8 +27,9 @@ export function useNewsletterForm(): UseNewsletterFormResult {
       showToast("success", "Successfully subscribed to the newsletter!");
       setEmail("");
     },
-    onError: (error: any) => {
-      if (error.response?.status === 409) {
+    onError: (error: unknown) => {
+      const axiosError = error as { response?: { status?: number } } | undefined;
+      if (axiosError?.response?.status === 409) {
         showToast("error", "This email is already subscribed.");
       } else {
         showToast("error", "An error occurred while subscribing.");

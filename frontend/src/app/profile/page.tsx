@@ -50,11 +50,11 @@ export default function ProfilePage() {
   const isDirty = profileForm.formState.isDirty;
 
   const handleProfileSubmit = () => {
-    const current = profileForm.getValues<ProfileFormValues>();
+    const { firstname, lastname } = profileForm.getValues();
     const payload: UpdateProfilePayload = {};
 
-    if (current.firstname !== savedValuesRef.current.firstname) payload.firstname = current.firstname;
-    if (current.lastname !== savedValuesRef.current.lastname) payload.lastname = current.lastname;
+    if (firstname !== savedValuesRef.current.firstname) payload.firstname = firstname;
+    if (lastname !== savedValuesRef.current.lastname) payload.lastname = lastname;
 
     if (Object.keys(payload).length === 0) {
       showToast("error", "No changes to save");
