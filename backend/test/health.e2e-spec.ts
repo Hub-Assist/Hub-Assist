@@ -15,6 +15,8 @@ import { JwtStrategy } from '../src/auth/jwt.strategy';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from '../src/common/interceptors/logging.interceptor';
 
+const mockLogger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn(), fatal: jest.fn() };
+
 const JWT_SECRET = 'hubassist-secret';
 
 // ---------------------------------------------------------------------------
@@ -94,7 +96,7 @@ describe('Health (e2e)', () => {
     nestApp.setGlobalPrefix('api');
     nestApp.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     nestApp.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    nestApp.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    nestApp.useGlobalInterceptors(new LoggingInterceptor(mockLogger), new TransformInterceptor());
     await nestApp.init();
 
     jwtService = module.get(JwtService);

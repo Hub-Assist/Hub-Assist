@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { JwtService } from '@nestjs/jwt';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -63,7 +63,8 @@ describe('Users (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
     const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
-    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    const mockLogger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn(), fatal: jest.fn() };
+    app.useGlobalInterceptors(new LoggingInterceptor(mockLogger), new TransformInterceptor());
     await app.init();
 
     jwtService = module.get(JwtService);
