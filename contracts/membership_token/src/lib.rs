@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Vec};
 
-use common_types::ContractError;
+use common_types::{publish_event, ContractError};
 
 const TOKEN_TTL: u32 = 17_280 * 365; // ~1 year in ledgers
 
@@ -29,6 +29,8 @@ pub struct MembershipToken {
 pub enum DataKey {
     TokenCount,
     Token(u64),
+    ExpiryIndex(u64),
+    GracePeriodDays,
     Admin,
     Paused,
 }
@@ -62,14 +64,14 @@ impl MembershipTokenContract {
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((symbol_short!("paused"),), admin);
+        publish_event(&env, "membership_token", symbol_short!("paused"), (symbol_short!("paused"),), admin);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((symbol_short!("unpaused"),), admin);
+        publish_event(&env, "membership_token", symbol_short!("unpaused"), (symbol_short!("unpaused"),), admin);
         Ok(())
     }
 
@@ -110,7 +112,7 @@ impl MembershipTokenContract {
             .persistent()
             .set(&DataKey::ExpiryIndex(expiry_day), &tokens_on_day);
         
-        env.events().publish((symbol_short!("issue"), owner), id);
+        publish_event(&env, "membership_token", symbol_short!("issue"), (symbol_short!("issue"), owner), id);
         Ok(id)
     }
 
@@ -127,7 +129,7 @@ impl MembershipTokenContract {
         let old_owner = token.owner.clone();
         token.owner = new_owner.clone();
         Self::save_token(&env, &token);
-        env.events().publish((symbol_short!("transfer"), old_owner), (id, new_owner));
+        publish_event(&env, "membership_token", symbol_short!("transfer"), (symbol_short!("transfer"), old_owner), (id, new_owner));
         Ok(())
     }
 
@@ -140,24 +142,22 @@ impl MembershipTokenContract {
         Self::require_not_paused(&env)?;
         Self::require_admin(&env, &admin)?;
         let mut token = Self::load_token(&env, id)?;
-<<<<<<< HEAD
-        
-        // Validate transition: GracePeriod -> Active
         let current_status = Self::compute_status(&env, &token);
         Self::validate_transition(&current_status, &MembershipStatus::Active)?;
-=======
-        if token.status == MembershipStatus::Revoked {
-            return Err(ContractError::TokenRevoked);
-        }
-        
-        // Remove from old expiry bucket
+
         let old_expiry_day = token.expiry_date / 86400;
         if let Some(mut tokens_on_day) = env
             .storage()
             .persistent()
             .get::<DataKey, Vec<u64>>(&DataKey::ExpiryIndex(old_expiry_day))
         {
-            tokens_on_day.retain(|&token_id| token_id != id);
+            let mut updated_tokens = Vec::new(&env);
+            for token_id in tokens_on_day.iter() {
+                if token_id != id {
+                    updated_tokens.push_back(token_id);
+                }
+            }
+            tokens_on_day = updated_tokens;
             if tokens_on_day.len() > 0 {
                 env.storage()
                     .persistent()
@@ -180,17 +180,13 @@ impl MembershipTokenContract {
         env.storage()
             .persistent()
             .set(&DataKey::ExpiryIndex(new_expiry_day), &tokens_on_day);
->>>>>>> origin/main
         
         token.expiry_date = new_expiry_date;
         token.status = MembershipStatus::Active;
         Self::save_token(&env, &token);
         
-        env.events().publish(
-            (symbol_short!("status_tr"),),
-            (id, current_status as u32, MembershipStatus::Active as u32),
-        );
-        env.events().publish((symbol_short!("renew"), token.owner), (id, new_expiry_date));
+        publish_event(&env, "membership_token", symbol_short!("status_tr"), (symbol_short!("status_tr"),), (id, current_status as u32, MembershipStatus::Active as u32));
+        publish_event(&env, "membership_token", symbol_short!("renew"), (symbol_short!("renew"), token.owner), (id, new_expiry_date));
         Ok(())
     }
 
@@ -206,11 +202,8 @@ impl MembershipTokenContract {
         token.status = MembershipStatus::Revoked;
         Self::save_token(&env, &token);
         
-        env.events().publish(
-            (symbol_short!("status_tr"),),
-            (id, current_status as u32, MembershipStatus::Revoked as u32),
-        );
-        env.events().publish((symbol_short!("revoke"), token.owner), id);
+        publish_event(&env, "membership_token", symbol_short!("status_tr"), (symbol_short!("status_tr"),), (id, current_status as u32, MembershipStatus::Revoked as u32));
+        publish_event(&env, "membership_token", symbol_short!("revoke"), (symbol_short!("revoke"), token.owner), id);
         Ok(())
     }
 
@@ -295,7 +288,7 @@ impl MembershipTokenContract {
                 status: MembershipStatus::Active,
             };
             Self::save_token(&env, &token);
-            env.events().publish((symbol_short!("issue"), p.owner.clone()), id);
+            publish_event(&env, "membership_token", symbol_short!("issue"), (symbol_short!("issue"), p.owner.clone()), id);
             ids.push_back(id);
         }
         Ok(ids)
@@ -318,7 +311,7 @@ impl MembershipTokenContract {
             let old_owner = token.owner.clone();
             token.owner = p.new_owner.clone();
             Self::save_token(&env, &token);
-            env.events().publish((symbol_short!("transfer"), old_owner), (p.id, p.new_owner));
+            publish_event(&env, "membership_token", symbol_short!("transfer"), (symbol_short!("transfer"), old_owner), (p.id, p.new_owner));
         }
         Ok(())
     }
@@ -425,6 +418,17 @@ impl MembershipTokenContract {
             // All other transitions are invalid
             _ => Err(ContractError::InvalidTransition),
         }
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
+        Ok(())
     }
 }
 

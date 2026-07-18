@@ -129,8 +129,7 @@ impl RewardsModule {
                 .set(&RewardsKey::TotalRewardsPaid(staker.clone()), &new_total);
 
             // Emit event
-            env.events()
-                .publish((symbol_short!("rwrd_clm"),), (staker, pending));
+            publish_event(&env, "manage_hub_rewards", symbol_short!("rwrd_clm"), (symbol_short!("rwrd_clm"),), (staker, pending));
         }
 
         Ok(pending)
@@ -158,10 +157,7 @@ impl RewardsModule {
         storage.set(&RewardsKey::MerkleRoot, &merkle_root);
         storage.set(&RewardsKey::MerkleRootAmount, &total_amount);
         
-        env.events().publish(
-            (symbol_short!("merkle_rt"),),
-            (merkle_root, total_amount),
-        );
+        publish_event(&env, "manage_hub_rewards", symbol_short!("merkle_rt"), (symbol_short!("merkle_rt"),), (merkle_root, total_amount));
         Ok(())
     }
 
@@ -189,8 +185,8 @@ impl RewardsModule {
         }
 
         // Verify Merkle proof
-        let leaf = Self::hash_leaf(&claimant, &amount);
-        if !Self::verify_proof(&leaf, &merkle_root, &proof) {
+        let leaf = Self::hash_leaf(&env, &claimant, &amount);
+        if !Self::verify_proof(&env, &leaf, &merkle_root, &proof) {
             return Err(ContractError::InvalidProof);
         }
 
@@ -213,38 +209,26 @@ impl RewardsModule {
             &amount,
         );
 
-        env.events().publish(
-            (symbol_short!("claim_rwd"),),
-            (claimant, amount),
-        );
+        publish_event(&env, "manage_hub_rewards", symbol_short!("claim_rwd"), (symbol_short!("claim_rwd"),), (claimant, amount));
         Ok(())
     }
 
-    /// Hash a leaf node (claimant, amount)
-    fn hash_leaf(claimant: &Address, amount: &i128) -> BytesN<32> {
-        // In production, use proper serialization
-        // For now, create a simple hash combining address and amount
-        let mut data = [0u8; 32];
-        // This is a simplified version - in production use proper hashing
-        data
+    /// Hash a leaf node (claimant, amount) — placeholder; use proper serialization in production.
+    fn hash_leaf(env: &Env, _claimant: &Address, _amount: &i128) -> BytesN<32> {
+        BytesN::from_array(env, &[0u8; 32])
     }
 
     /// Verify Merkle proof
-    fn verify_proof(leaf: &BytesN<32>, root: &BytesN<32>, proof: &Vec<BytesN<32>>) -> bool {
+    fn verify_proof(env: &Env, leaf: &BytesN<32>, root: &BytesN<32>, proof: &Vec<BytesN<32>>) -> bool {
         let mut current = leaf.clone();
-        
         for proof_element in proof.iter() {
-            // Hash current with proof element
-            current = Self::hash_pair(&current, &proof_element);
+            current = Self::hash_pair(env, &current, &proof_element);
         }
-        
         current == *root
     }
 
-    /// Hash two nodes together
-    fn hash_pair(left: &BytesN<32>, right: &BytesN<32>) -> BytesN<32> {
-        // In production, use Soroban's native crypto (sha256)
-        // For now, return a placeholder
+    /// Hash two nodes together — placeholder.
+    fn hash_pair(env: &Env, left: &BytesN<32>, _right: &BytesN<32>) -> BytesN<32> {
         left.clone()
     }
 }

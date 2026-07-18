@@ -1,5 +1,6 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, contracterror, Address, Env, String, Vec};
+use common_types;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -110,5 +111,23 @@ impl HubAssistHub {
             .get(&DataKey::HubMembers(hub_id))
             .unwrap_or(Vec::new(&env));
         members.len()
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
+        admin.require_auth();
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("admin not set");
+        if admin != stored_admin {
+            panic!("unauthorized");
+        }
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
     }
 }

@@ -6,6 +6,7 @@ version = 4
 name = "access_control"
 version = "0.1.0"
 dependencies = [
+ "common_types",
  "soroban-sdk",
 ]
 
@@ -698,6 +699,7 @@ dependencies = [
 name = "membership_token"
 version = "0.1.0"
 dependencies = [
+ "common_types",
  "soroban-sdk",
 ]
 
@@ -798,6 +800,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 name = "payment_escrow"
 version = "0.1.0"
 dependencies = [
+ "common_types",
  "soroban-sdk",
 ]
 

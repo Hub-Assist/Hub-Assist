@@ -11,6 +11,7 @@ pub(crate) use types::{Escrow, EscrowStatus, Resolution, ArbitrationVote};
 use soroban_sdk::{
     contract, contractimpl, contracttype, token, vec, Address, BytesN, Env, Vec, symbol_short,
 };
+use common_types::publish_event;
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
 const DISPUTE_TIMEOUT_SECONDS: u64 = 30 * 24 * 3600; // 30 days
@@ -20,6 +21,7 @@ enum DataKey {
     Admin,
     PaymentToken,
     DisputeWindow,
+    DisputeWindowConfig(u32),
     EscrowCount,
     Escrow(u64),
     DepositorEscrows(Address),
@@ -49,6 +51,12 @@ impl PaymentEscrow {
         Ok(())
     }
 
+    pub fn set_dispute_window(env: Env, admin: Address, booking_type: u32, window_seconds: u64) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.storage().persistent().set(&DataKey::DisputeWindowConfig(booking_type), &window_seconds);
+        Ok(())
+    }
+
     pub fn get_arbitrators(env: Env) -> Vec<Address> {
         env.storage()
             .persistent()
@@ -59,14 +67,14 @@ impl PaymentEscrow {
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &true);
-        env.events().publish((symbol_short!("paused"),), admin);
+        publish_event(&env, "payment_escrow", symbol_short!("paused"), (symbol_short!("paused"),), admin);
         Ok(())
     }
 
     pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
         Self::require_admin(&env, &admin)?;
         env.storage().instance().set(&DataKey::Paused, &false);
-        env.events().publish((symbol_short!("unpaused"),), admin);
+        publish_event(&env, "payment_escrow", symbol_short!("unpaused"), (symbol_short!("unpaused"),), admin);
         Ok(())
     }
 
@@ -76,6 +84,7 @@ impl PaymentEscrow {
         beneficiary: Address,
         amount: i128,
         release_time: u64,
+        booking_type: u32,
     ) -> Result<u64, ContractError> {
         Self::require_not_paused(&env)?;
         depositor.require_auth();
@@ -86,7 +95,11 @@ impl PaymentEscrow {
 
         let s = env.storage().persistent();
         let payment_token: Address = s.get(&DataKey::PaymentToken).ok_or(ContractError::PaymentTokenNotSet)?;
-        let dispute_window: u64 = s.get(&DataKey::DisputeWindow).unwrap_or(86_400);
+        // Snapshot dispute window: per-type config takes priority over default
+        let dispute_window: u64 = s
+            .get(&DataKey::DisputeWindowConfig(booking_type))
+            .or_else(|| s.get(&DataKey::DisputeWindow))
+            .unwrap_or(86_400);
 
         // Transfer tokens from depositor to this contract
         token::Client::new(&env, &payment_token).transfer(
@@ -185,7 +198,7 @@ impl PaymentEscrow {
         Ok(())
     }
 
-    /// Mark escrow as disputed. Depositor only, while still Active.
+    /// Mark escrow as disputed. Depositor only, while still Active and within dispute window.
     pub fn dispute(env: Env, depositor: Address, escrow_id: u64, evidence_hash: BytesN<32>) -> Result<(), ContractError> {
         Self::require_not_paused(&env)?;
         depositor.require_auth();
@@ -199,12 +212,18 @@ impl PaymentEscrow {
             return Err(ContractError::EscrowAlreadyReleased);
         }
 
+        // Enforce dispute window: must be raised before release_time + dispute_window
+        let now = env.ledger().timestamp();
+        if now > escrow.release_time + escrow.dispute_window {
+            return Err(ContractError::DisputeWindowExpired);
+        }
+
         escrow.status = EscrowStatus::Disputed;
         escrow.dispute_timestamp = env.ledger().timestamp();
-        escrow.depositor_evidence_hash = evidence_hash;
+        escrow.depositor_evidence_hash = evidence_hash.clone();
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("dispute"),), (escrow_id, evidence_hash));
+        publish_event(&env, "payment_escrow", symbol_short!("dispute"), (symbol_short!("dispute"),), (escrow_id, evidence_hash));
         Ok(())
     }
 
@@ -224,16 +243,16 @@ impl PaymentEscrow {
         }
 
         if caller == escrow.depositor {
-            escrow.depositor_evidence_hash = evidence_hash;
+            escrow.depositor_evidence_hash = evidence_hash.clone();
         } else if caller == escrow.beneficiary {
-            escrow.beneficiary_evidence_hash = evidence_hash;
+            escrow.beneficiary_evidence_hash = evidence_hash.clone();
         } else {
             return Err(ContractError::Unauthorized);
         }
 
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("evidence"),), (escrow_id, caller, evidence_hash));
+        publish_event(&env, "payment_escrow", symbol_short!("evidence"), (symbol_short!("evidence"),), (escrow_id, caller, evidence_hash));
         Ok(())
     }
 
@@ -301,7 +320,7 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Released;
-            env.events().publish((symbol_short!("arb_release"),), escrow_id);
+            publish_event(&env, "payment_escrow", symbol_short!("arb_rel"), (symbol_short!("arb_rel"),), escrow_id);
         } else if refund_votes >= majority_threshold {
             token::Client::new(&env, &escrow.payment_token).transfer(
                 &env.current_contract_address(),
@@ -309,12 +328,12 @@ impl PaymentEscrow {
                 &escrow.amount,
             );
             escrow.status = EscrowStatus::Refunded;
-            env.events().publish((symbol_short!("arb_refund"),), escrow_id);
+            publish_event(&env, "payment_escrow", symbol_short!("arb_ref"), (symbol_short!("arb_ref"),), escrow_id);
         }
 
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("vote"),), (escrow_id, arbitrator, decision));
+        publish_event(&env, "payment_escrow", symbol_short!("vote"), (symbol_short!("vote"),), (escrow_id, arbitrator, decision));
         Ok(())
     }
 
@@ -342,7 +361,7 @@ impl PaymentEscrow {
         escrow.status = EscrowStatus::Refunded;
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
-        env.events().publish((symbol_short!("dispute_exp"),), escrow_id);
+        publish_event(&env, "payment_escrow", symbol_short!("disp_exp"), (symbol_short!("disp_exp"),), escrow_id);
         Ok(())
     }
 
@@ -375,9 +394,8 @@ impl PaymentEscrow {
         s.set(&DataKey::Escrow(escrow_id), &escrow);
         s.extend_ttl(&DataKey::Escrow(escrow_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("auto_rel"), caller), escrow_id);
+        publish_event(&env, "payment_escrow", symbol_short!("auto_rel"), (symbol_short!("auto_rel"), caller), escrow_id);
         Ok(())
-    }
     }
 
     pub fn get_escrow(env: Env, id: u64) -> Result<Escrow, ContractError> {
@@ -440,5 +458,16 @@ impl PaymentEscrow {
             }
         }
         result
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) -> Result<(), ContractError> {
+        Self::require_admin(&env, &admin)?;
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
+        Ok(())
     }
 }

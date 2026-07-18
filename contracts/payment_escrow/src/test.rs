@@ -4,8 +4,15 @@ extern crate std;
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Ledger},
-    token, Address, Env,
+    token, Address, BytesN, Env,
 };
+
+// Booking-type constants matching business domain
+const HOT_DESK: u32 = 1;
+const PRIVATE_OFFICE: u32 = 2;
+
+const TWO_DAYS: u64 = 2 * 24 * 3600;   // 172_800 s
+const SEVEN_DAYS: u64 = 7 * 24 * 3600; // 604_800 s
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,7 +39,7 @@ impl TestEnv {
         PaymentEscrowClient::new(&env, &contract_id).initialize(
             &admin,
             &token_id,
-            &500, // dispute_window = 500s
+            &500, // default dispute_window = 500s
         );
 
         TestEnv { env, admin, contract_id, token_id }
@@ -54,12 +61,16 @@ impl TestEnv {
         self.token_admin().mint(to, &amount);
     }
 
-    /// Create a standard escrow: release_time = now + 100, dispute_window = 500
-    /// So release is allowed at t >= 1600 (1000 + 100 + 500).
+    fn zero_hash(&self) -> BytesN<32> {
+        BytesN::<32>::from_array(&self.env, &[0u8; 32])
+    }
+
+    /// Create escrow with default booking type (0 → falls back to default 500s window).
+    /// release_time = now(1000) + 100 = 1100. Window expires at 1100 + 500 = 1600.
     fn create_default_escrow(&self, depositor: &Address, beneficiary: &Address) -> u64 {
         self.mint(depositor, 1000);
         self.client()
-            .create_escrow(depositor, beneficiary, &100, &1100)
+            .create_escrow(depositor, beneficiary, &100, &1100, &0)
             .unwrap()
     }
 
@@ -77,9 +88,8 @@ fn test_create_escrow_transfers_tokens_and_creates_active_record() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 500);
 
-    let id = t.client().create_escrow(&depositor, &beneficiary, &200, &2000).unwrap();
+    let id = t.client().create_escrow(&depositor, &beneficiary, &200, &2000, &0).unwrap();
 
-    // tokens moved from depositor to contract
     assert_eq!(t.token().balance(&depositor), 300);
     assert_eq!(t.token().balance(&t.contract_id), 200);
 
@@ -97,7 +107,7 @@ fn test_create_escrow_invalid_amount_returns_error() {
     let beneficiary = Address::generate(&t.env);
     let err = t
         .client()
-        .try_create_escrow(&depositor, &beneficiary, &0, &2000)
+        .try_create_escrow(&depositor, &beneficiary, &0, &2000, &0)
         .unwrap_err()
         .unwrap();
     assert_eq!(err, ContractError::InvalidAmount);
@@ -140,7 +150,6 @@ fn test_release_before_window_returns_error() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    // still at t=1000, window expires at 1600
     let err = t.client().try_release(&beneficiary, &id).unwrap_err().unwrap();
     assert_eq!(err, ContractError::DisputeWindowActive);
 }
@@ -197,7 +206,7 @@ fn test_depositor_can_dispute_active_escrow() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    t.client().dispute(&depositor, &id).unwrap();
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
     assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
 }
 
@@ -208,7 +217,7 @@ fn test_disputed_escrow_cannot_be_released() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    t.client().dispute(&depositor, &id).unwrap();
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
     t.advance_past_window();
 
     let err = t.client().try_release(&beneficiary, &id).unwrap_err().unwrap();
@@ -222,7 +231,7 @@ fn test_admin_can_refund_disputed_escrow() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    t.client().dispute(&depositor, &id).unwrap();
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
     t.client().refund(&t.admin, &id).unwrap();
     assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Refunded);
 }
@@ -260,11 +269,11 @@ fn test_dispute_by_non_depositor_returns_unauthorized() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    let err = t.client().try_dispute(&beneficiary, &id).unwrap_err().unwrap();
+    let err = t.client().try_dispute(&beneficiary, &id, &t.zero_hash()).unwrap_err().unwrap();
     assert_eq!(err, ContractError::Unauthorized);
 }
 
-// ── multiple escrows for same depositor ───────────────────────────────────────
+// ── multiple escrows ──────────────────────────────────────────────────────────
 
 #[test]
 fn test_multiple_escrows_same_depositor() {
@@ -273,14 +282,14 @@ fn test_multiple_escrows_same_depositor() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 1_000);
 
-    let id1 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000).unwrap();
-    let id2 = t.client().create_escrow(&depositor, &beneficiary, &300, &2000).unwrap();
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000, &0).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &300, &2000, &0).unwrap();
 
     assert_ne!(id1, id2);
     assert_eq!(t.token().balance(&t.contract_id), 500);
 }
 
-// ── list_depositor_escrows / list_beneficiary_escrows ─────────────────────────
+// ── list escrows ──────────────────────────────────────────────────────────────
 
 #[test]
 fn test_list_depositor_escrows_returns_correct_ids() {
@@ -289,8 +298,8 @@ fn test_list_depositor_escrows_returns_correct_ids() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 1_000);
 
-    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000).unwrap();
-    let id2 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000).unwrap();
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &0).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &200, &2000, &0).unwrap();
 
     let escrows = t.client().list_depositor_escrows(&depositor);
     assert_eq!(escrows.len(), 2);
@@ -305,8 +314,8 @@ fn test_list_beneficiary_escrows_returns_correct_ids() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 1_000);
 
-    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000).unwrap();
-    let id2 = t.client().create_escrow(&depositor, &beneficiary, &150, &2000).unwrap();
+    let id1 = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &0).unwrap();
+    let id2 = t.client().create_escrow(&depositor, &beneficiary, &150, &2000, &0).unwrap();
 
     let escrows = t.client().list_beneficiary_escrows(&beneficiary);
     assert_eq!(escrows.len(), 2);
@@ -314,23 +323,7 @@ fn test_list_beneficiary_escrows_returns_correct_ids() {
     assert_eq!(escrows.get(1).unwrap().id, id2);
 }
 
-// ── zero-amount escrow ────────────────────────────────────────────────────────
-
-#[test]
-fn test_zero_amount_escrow_returns_invalid_amount() {
-    let t = TestEnv::new();
-    let depositor = Address::generate(&t.env);
-    let beneficiary = Address::generate(&t.env);
-
-    let err = t
-        .client()
-        .try_create_escrow(&depositor, &beneficiary, &0, &2000)
-        .unwrap_err()
-        .unwrap();
-    assert_eq!(err, ContractError::InvalidAmount);
-}
-
-// ── token balances after release and refund ───────────────────────────────────
+// ── token balances ────────────────────────────────────────────────────────────
 
 #[test]
 fn test_token_balances_correct_after_release() {
@@ -339,7 +332,7 @@ fn test_token_balances_correct_after_release() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 500);
 
-    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100).unwrap();
+    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100, &0).unwrap();
     assert_eq!(t.token().balance(&depositor), 200);
     assert_eq!(t.token().balance(&t.contract_id), 300);
 
@@ -357,7 +350,7 @@ fn test_token_balances_correct_after_refund() {
     let beneficiary = Address::generate(&t.env);
     t.mint(&depositor, 500);
 
-    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100).unwrap();
+    let id = t.client().create_escrow(&depositor, &beneficiary, &300, &1100, &0).unwrap();
     assert_eq!(t.token().balance(&depositor), 200);
 
     t.client().refund(&t.admin, &id).unwrap();
@@ -365,8 +358,6 @@ fn test_token_balances_correct_after_refund() {
     assert_eq!(t.token().balance(&depositor), 500);
     assert_eq!(t.token().balance(&t.contract_id), 0);
 }
-
-// ── dispute an already-released escrow ───────────────────────────────────────
 
 #[test]
 fn test_dispute_already_released_escrow_returns_error() {
@@ -378,11 +369,9 @@ fn test_dispute_already_released_escrow_returns_error() {
     t.advance_past_window();
     t.client().release(&beneficiary, &id).unwrap();
 
-    let err = t.client().try_dispute(&depositor, &id).unwrap_err().unwrap();
+    let err = t.client().try_dispute(&depositor, &id, &t.zero_hash()).unwrap_err().unwrap();
     assert_eq!(err, ContractError::EscrowAlreadyReleased);
 }
-
-// ── refund a disputed escrow (admin override) ─────────────────────────────────
 
 #[test]
 fn test_admin_refund_disputed_escrow_succeeds() {
@@ -391,7 +380,7 @@ fn test_admin_refund_disputed_escrow_succeeds() {
     let beneficiary = Address::generate(&t.env);
     let id = t.create_default_escrow(&depositor, &beneficiary);
 
-    t.client().dispute(&depositor, &id).unwrap();
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
     assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
 
     let balance_before = t.token().balance(&depositor);
@@ -399,4 +388,111 @@ fn test_admin_refund_disputed_escrow_succeeds() {
 
     assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Refunded);
     assert_eq!(t.token().balance(&depositor), balance_before + 100);
+}
+
+// ── per-booking-type dispute window tests ─────────────────────────────────────
+
+/// Hot-desk (type 1) gets a 2-day window. Dispute raised on day 1 must succeed.
+#[test]
+fn test_hot_desk_dispute_within_2_day_window_succeeds() {
+    let t = TestEnv::new();
+    // Configure 2-day window for hot-desk bookings
+    t.client().set_dispute_window(&t.admin, &HOT_DESK, &TWO_DAYS).unwrap();
+
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    // now=1000, release_time=2000; window ends at 2000+172800=174800
+    let id = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &HOT_DESK).unwrap();
+
+    // Verify snapshotted window
+    let escrow = t.client().get_escrow(&id);
+    assert_eq!(escrow.dispute_window, TWO_DAYS);
+
+    // Advance to day 1 after release (86400 s after release_time) — still inside window
+    t.env.ledger().with_mut(|li| li.timestamp = 2000 + 86_400);
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
+    assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
+}
+
+/// Private-office (type 2) gets a 7-day window. Dispute on day 6 must succeed.
+#[test]
+fn test_private_office_dispute_on_day_6_within_7_day_window_succeeds() {
+    let t = TestEnv::new();
+    // Configure 7-day window for private-office bookings
+    t.client().set_dispute_window(&t.admin, &PRIVATE_OFFICE, &SEVEN_DAYS).unwrap();
+
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    // now=1000, release_time=2000; window ends at 2000+604800=606800
+    let id = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &PRIVATE_OFFICE).unwrap();
+
+    let escrow = t.client().get_escrow(&id);
+    assert_eq!(escrow.dispute_window, SEVEN_DAYS);
+
+    // Day 6 after release = 6 * 86400 = 518400 s after release_time (still inside 7-day window)
+    t.env.ledger().with_mut(|li| li.timestamp = 2000 + 6 * 86_400);
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
+    assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
+}
+
+/// Dispute raised after the hot-desk 2-day window must return DisputeWindowExpired.
+#[test]
+fn test_dispute_after_window_returns_dispute_window_expired() {
+    let t = TestEnv::new();
+    t.client().set_dispute_window(&t.admin, &HOT_DESK, &TWO_DAYS).unwrap();
+
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    // release_time=2000; window ends at 2000+172800=174800
+    let id = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &HOT_DESK).unwrap();
+
+    // Advance past the 2-day window (day 3 after release)
+    t.env.ledger().with_mut(|li| li.timestamp = 2000 + 3 * 86_400);
+    let err = t.client().try_dispute(&depositor, &id, &t.zero_hash()).unwrap_err().unwrap();
+    assert_eq!(err, ContractError::DisputeWindowExpired);
+}
+
+/// Config change after escrow creation must NOT affect the snapshotted window.
+#[test]
+fn test_dispute_window_config_change_does_not_affect_existing_escrow() {
+    let t = TestEnv::new();
+    // Initially set a 7-day window for private-office
+    t.client().set_dispute_window(&t.admin, &PRIVATE_OFFICE, &SEVEN_DAYS).unwrap();
+
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    // Create escrow — snapshots 7-day window
+    let id = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &PRIVATE_OFFICE).unwrap();
+    assert_eq!(t.client().get_escrow(&id).dispute_window, SEVEN_DAYS);
+
+    // Admin shrinks window to 1-day AFTER creation
+    t.client().set_dispute_window(&t.admin, &PRIVATE_OFFICE, &86_400).unwrap();
+
+    // Day 2 after release — outside new 1-day window, but inside snapshotted 7-day window
+    t.env.ledger().with_mut(|li| li.timestamp = 2000 + 2 * 86_400);
+    // Should still succeed because the escrow uses its snapshotted 7-day window
+    t.client().dispute(&depositor, &id, &t.zero_hash()).unwrap();
+    assert_eq!(t.client().get_escrow(&id).status, EscrowStatus::Disputed);
+}
+
+/// Unconfigured booking type falls back to the default dispute window.
+#[test]
+fn test_unconfigured_booking_type_falls_back_to_default_window() {
+    let t = TestEnv::new();
+    // type 99 has no per-type config; default is 500s
+
+    let depositor = Address::generate(&t.env);
+    let beneficiary = Address::generate(&t.env);
+    t.mint(&depositor, 500);
+
+    let id = t.client().create_escrow(&depositor, &beneficiary, &100, &2000, &99).unwrap();
+    assert_eq!(t.client().get_escrow(&id).dispute_window, 500);
 }

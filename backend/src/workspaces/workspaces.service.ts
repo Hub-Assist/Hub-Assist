@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Workspace, WorkspaceType, WorkspaceAvailability } from './workspace.entity';
+import { Amenity } from './amenity.entity';
 import { CreateWorkspaceDto, UpdateWorkspaceDto } from './workspaces.dto';
+import { AmenitiesService } from './amenities.service';
 import { Booking, BookingStatus } from '../bookings/booking.entity';
 import { EmailService } from '../email/email.service';
 import { CapacityCheckService } from '../bookings/capacity-check.service';
@@ -12,12 +14,20 @@ export class WorkspacesService {
   constructor(
     @InjectRepository(Workspace) private repo: Repository<Workspace>,
     @InjectRepository(Booking) private bookingRepo: Repository<Booking>,
+    private amenitiesService: AmenitiesService,
     private emailService: EmailService,
     private capacityCheckService: CapacityCheckService,
   ) {}
 
-  create(dto: CreateWorkspaceDto) {
-    return this.repo.save(this.repo.create(dto));
+  async create(dto: CreateWorkspaceDto) {
+    const { amenityIds, ...rest } = dto;
+    const workspace = this.repo.create(rest);
+    
+    if (amenityIds && amenityIds.length > 0) {
+      workspace.amenities = await this.amenitiesService.findByIds(amenityIds);
+    }
+    
+    return this.repo.save(workspace);
   }
 
   async findAll(
@@ -25,8 +35,12 @@ export class WorkspacesService {
     limit: number = 10,
     type?: WorkspaceType,
     availability?: WorkspaceAvailability,
+    amenities?: string[],
+    amenityMatch: 'all' | 'any' = 'all',
   ) {
-    const query = this.repo.createQueryBuilder('workspace').where('workspace.deletedAt IS NULL');
+    const query = this.repo.createQueryBuilder('workspace')
+      .leftJoinAndSelect('workspace.amenities', 'amenity', 'amenity.deletedAt IS NULL')
+      .where('workspace.deletedAt IS NULL');
 
     if (type) {
       query.andWhere('workspace.type = :type', { type });
@@ -34,6 +48,28 @@ export class WorkspacesService {
 
     if (availability) {
       query.andWhere('workspace.availability = :availability', { availability });
+    }
+
+    if (amenities && amenities.length > 0) {
+      if (amenityMatch === 'any') {
+        query.andWhere('amenity.name IN (:...amenityNames)', { amenityNames: amenities });
+      } else {
+        // AND logic: workspace must have ALL of these amenities
+        // We ensure this by checking if the count of matching amenities equals the requested count
+        // or using subqueries for each amenity to be strict
+        amenities.forEach((amenityName, index) => {
+          const alias = `am_${index}`;
+          query.andWhere(qb => {
+            const subQuery = qb.subQuery()
+              .select('ws_am.workspacesId')
+              .from('workspace_amenities', 'ws_am')
+              .innerJoin('amenities', 'am', 'am.id = ws_am.amenitiesId')
+              .where(`am.name = :amenity_${index}`)
+              .getQuery();
+            return `workspace.id IN ${subQuery}`;
+          }, { [`amenity_${index}`]: amenityName });
+        });
+      }
     }
 
     const [data, total] = await query
@@ -66,9 +102,16 @@ export class WorkspacesService {
   }
 
   async update(id: string, dto: UpdateWorkspaceDto) {
-    await this.findById(id);
-    await this.repo.update(id, dto);
-    return this.findById(id);
+    const workspace = await this.findById(id);
+    const { amenityIds, ...rest } = dto;
+    
+    Object.assign(workspace, rest);
+    
+    if (amenityIds) {
+      workspace.amenities = await this.amenitiesService.findByIds(amenityIds);
+    }
+    
+    return this.repo.save(workspace);
   }
 
   async softDelete(id: string) {

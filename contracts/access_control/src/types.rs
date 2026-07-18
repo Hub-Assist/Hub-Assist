@@ -54,3 +54,13 @@ pub struct MembershipInfo {
     pub role: UserRole,
     pub assigned_at: u64,
 }
+
+/// A pending two-step admin transfer awaiting acceptance by `address`.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingAdminTransfer {
+    /// the proposed new admin who must explicitly accept the role
+    pub address: Address,
+    /// ledger timestamp at which the transfer was proposed
+    pub proposed_at: u64,
+}

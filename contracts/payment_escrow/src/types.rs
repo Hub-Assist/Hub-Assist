@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN, Vec, Env};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 #[contracttype]
 #[derive(Clone, PartialEq)]

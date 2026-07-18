@@ -27,7 +27,7 @@ export class CreateWorkspaceDto {
 
   @IsOptional()
   @IsArray()
-  amenities?: string[];
+  amenityIds?: string[];
 }
 
 @AtLeastOneField({ message: 'At least one field must be provided in PATCH request' })
@@ -65,7 +65,7 @@ export class UpdateWorkspaceDto {
 
   @IsOptional()
   @IsArray()
-  amenities?: string[];
+  amenityIds?: string[];
 
   @IsOptional()
   @IsBoolean()

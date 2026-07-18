@@ -293,7 +293,9 @@ describe("useForgotPassword", () => {
         result.current.mutate("user@example.com");
       });
 
-      expect(result.current.isPending).toBe(true);
+      await waitFor(() => {
+        expect(result.current.isPending).toBe(true);
+      });
 
       act(() => {
         resolveRequest!({ message: "Email sent" });
@@ -304,12 +306,22 @@ describe("useForgotPassword", () => {
       });
     });
 
-    it("should use correct mutation key", () => {
-      const { result } = renderHook(() => useForgotPassword(), {
-        wrapper: createWrapper(),
+    it("should register the mutation under the correct mutation key", () => {
+      const testQueryClient = createTestQueryClient();
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
+      );
+
+      mockPost.mockReturnValueOnce(new Promise(() => {}));
+
+      const { result } = renderHook(() => useForgotPassword(), { wrapper });
+
+      act(() => {
+        result.current.mutate("user@example.com");
       });
 
-      expect(result.current.mutationKey).toEqual(["auth", "forgot-password"]);
+      const [mutation] = testQueryClient.getMutationCache().getAll();
+      expect(mutation?.options.mutationKey).toEqual(["auth", "forgot-password"]);
     });
 
     it("should reset error state on new mutation", async () => {

@@ -1,23 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, type BookingStatus } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
+import { enumCodec } from "@/lib/filters/codecs";
 
-const TABS: { label: string; value: BookingStatus | "all" }[] = [
+type BookingTab = BookingStatus | "all";
+
+const TABS: { label: string; value: BookingTab }[] = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
   { label: "Confirmed", value: "confirmed" },
   { label: "Cancelled", value: "cancelled" },
 ];
 
-export default function BookingsPage() {
+interface BookingsFilters {
+  tab: BookingTab;
+}
+
+const DEFAULT_BOOKINGS_FILTERS: BookingsFilters = { tab: "all" };
+
+const BOOKINGS_FILTERS_SCHEMA: FilterSchema<BookingsFilters> = {
+  tab: enumCodec(TABS.map((t) => t.value)),
+};
+
+function BookingsContent() {
   const token = useAuthStore((s) => s.token) ?? "";
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
-  const [tab, setTab] = useState<BookingStatus | "all">("all");
+  const [{ tab }, setFilters] = useFiltersWithUrl(DEFAULT_BOOKINGS_FILTERS, BOOKINGS_FILTERS_SCHEMA);
 
   const { data: bookings = [], isLoading, isError } = useQuery({
     queryKey: ["bookings", tab],
@@ -34,7 +48,7 @@ export default function BookingsPage() {
         {TABS.map((t) => (
           <button
             key={t.value}
-            onClick={() => setTab(t.value)}
+            onClick={() => setFilters({ tab: t.value })}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === t.value
                 ? "bg-[#1A1A1A] text-[#F3EBE2]"
@@ -66,5 +80,13 @@ export default function BookingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense>
+      <BookingsContent />
+    </Suspense>
   );
 }

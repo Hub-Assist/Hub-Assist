@@ -7,23 +7,34 @@ mod test;
 
 pub(crate) use errors::ContractError;
 pub(crate) use types::{
-    Booking, BookingStatus, UnavailabilityReason, Workspace, WorkspaceAvailability, WorkspaceType, WorkspaceState,
+    Booking, BookingStatus, TierDiscounts, Workspace, WorkspaceAvailability, WorkspaceState,
+    WorkspaceTypeInfo, WaitlistEntry,
 };
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, token, vec, Address, BytesN, Env, String, Vec};
+use common_types::publish_event;
+use soroban_sdk::{
+    contract, contractimpl, contracttype, map, symbol_short, vec, Address, BytesN, Env, Map,
+    String, Vec,
+};
 
 const LEDGER_TTL: u32 = 535_680; // ~1 year
+const MAX_BATCH_SIZE: u32 = 20;
 
 #[contracttype]
 enum DataKey {
     Admin,
     PaymentToken,
     EscrowContract,
+    MembershipContract,
+    TierDiscounts,
+    WorkspaceTypeRegistry,
     WorkspaceCount,
     Workspace(u32),
     BookingCount,
     Booking(u64),
     MemberBookings(Address),
+    WorkspaceBookings(u32),
+    Waitlist(u32),
     Paused,
 }
 
@@ -32,30 +43,117 @@ pub struct WorkspaceBooking;
 
 #[contractimpl]
 impl WorkspaceBooking {
-    pub fn initialize(env: Env, admin: Address, payment_token: Address, escrow_contract: Address) {
+    /// Initialize the contract. Seeds the workspace type registry with 4 canonical types.
+    /// type_id 0 is reserved; valid IDs start at 1.
+    pub fn initialize(env: Env, admin: Address, payment_token: Address) {
         admin.require_auth();
         let storage = env.storage().persistent();
         storage.set(&DataKey::Admin, &admin);
         storage.set(&DataKey::PaymentToken, &payment_token);
-        storage.set(&DataKey::EscrowContract, &escrow_contract);
+
+        // Seed registry with the 4 canonical workspace types
+        let mut registry: Map<u32, WorkspaceTypeInfo> = map![&env];
+        registry.set(
+            1u32,
+            WorkspaceTypeInfo {
+                name: String::from_str(&env, "HotDesk"),
+                description: String::from_str(&env, "Open coworking desk available on a first-come, first-served basis"),
+                max_capacity_default: 1,
+            },
+        );
+        registry.set(
+            2u32,
+            WorkspaceTypeInfo {
+                name: String::from_str(&env, "DedicatedDesk"),
+                description: String::from_str(&env, "Reserved desk assigned exclusively to a member"),
+                max_capacity_default: 1,
+            },
+        );
+        registry.set(
+            3u32,
+            WorkspaceTypeInfo {
+                name: String::from_str(&env, "PrivateOffice"),
+                description: String::from_str(&env, "Enclosed private office for teams or individuals"),
+                max_capacity_default: 10,
+            },
+        );
+        registry.set(
+            4u32,
+            WorkspaceTypeInfo {
+                name: String::from_str(&env, "MeetingRoom"),
+                description: String::from_str(&env, "Bookable conference or meeting room"),
+                max_capacity_default: 20,
+            },
+        );
+        storage.set(&DataKey::WorkspaceTypeRegistry, &registry);
+        storage.extend_ttl(&DataKey::WorkspaceTypeRegistry, LEDGER_TTL, LEDGER_TTL);
+    }
+
+    /// Admin registers a new workspace type. type_id 0 is reserved.
+    /// Emits ("type_registered", admin) → type_id.
+    pub fn register_workspace_type(
+        env: Env,
+        caller: Address,
+        type_id: u32,
+        info: WorkspaceTypeInfo,
+    ) -> Result<(), ContractError> {
+        if type_id == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+        Self::require_admin(&env, &caller);
+        let storage = env.storage().persistent();
+        let mut registry: Map<u32, WorkspaceTypeInfo> = storage
+            .get(&DataKey::WorkspaceTypeRegistry)
+            .unwrap_or(map![&env]);
+
+        if registry.contains_key(type_id) {
+            return Err(ContractError::WorkspaceTypeAlreadyExists);
+        }
+
+        registry.set(type_id, info);
+        storage.set(&DataKey::WorkspaceTypeRegistry, &registry);
+        storage.extend_ttl(&DataKey::WorkspaceTypeRegistry, LEDGER_TTL, LEDGER_TTL);
+
+        env.events()
+            .publish((symbol_short!("type_reg"), caller), type_id);
+        Ok(())
+    }
+
+    /// Returns all registered workspace types as a Map<type_id, WorkspaceTypeInfo>.
+    pub fn get_workspace_types(env: Env) -> Map<u32, WorkspaceTypeInfo> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::WorkspaceTypeRegistry)
+            .unwrap_or(map![&env])
     }
 
     pub fn register_workspace(
         env: Env,
         caller: Address,
         name: String,
-        workspace_type: WorkspaceType,
+        type_id: u32,
         capacity: u32,
         price_per_hour: i128,
-    ) -> u32 {
+    ) -> Result<u32, ContractError> {
         Self::require_not_paused(&env);
         Self::require_admin(&env, &caller);
+
+        // Validate type_id exists in the registry
+        let registry: Map<u32, WorkspaceTypeInfo> = env
+            .storage()
+            .persistent()
+            .get(&DataKey::WorkspaceTypeRegistry)
+            .unwrap_or(map![&env]);
+        if !registry.contains_key(type_id) {
+            return Err(ContractError::UnknownWorkspaceType);
+        }
+
         let storage = env.storage().persistent();
         let id: u32 = storage.get(&DataKey::WorkspaceCount).unwrap_or(0u32) + 1;
         let workspace = Workspace {
             id,
             name,
-            workspace_type,
+            type_id,
             capacity,
             price_per_hour,
             availability: WorkspaceAvailability::Available,
@@ -64,7 +162,7 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Workspace(id), &workspace);
         storage.extend_ttl(&DataKey::Workspace(id), LEDGER_TTL, LEDGER_TTL);
         storage.set(&DataKey::WorkspaceCount, &id);
-        id
+        Ok(id)
     }
 
     pub fn update_workspace_availability(
@@ -102,31 +200,15 @@ impl WorkspaceBooking {
         }
 
         let storage = env.storage().persistent();
-        let payment_token: Address = storage
-            .get(&DataKey::PaymentToken)
-            .ok_or(ContractError::PaymentTokenNotSet)?;
-
-        // Pre-flight allowance validation
-        let allowance = soroban_sdk::token::Client::new(&env, &payment_token)
-            .allowance(&member, &env.current_contract_address());
-        if allowance < amount {
-            return Err(ContractError::InsufficientAllowance);
-        }
-
-        env.events().publish(
-            (symbol_short!("allow_chk"),),
-            (member.clone(), amount, allowance),
-        );
 
         let workspace: Workspace = storage
             .get(&DataKey::Workspace(workspace_id))
             .ok_or(ContractError::WorkspaceNotFound)?;
 
-        // Check state machine: block bookings for Unavailable or Maintenance states
         match &workspace.state {
-            WorkspaceState::Available => {},
-            WorkspaceState::Unavailable { .. } => return Err(ContractError::WorkspaceUnavailable),
-            WorkspaceState::Maintenance { .. } => return Err(ContractError::WorkspaceUnavailable),
+            WorkspaceState::Available => {}
+            WorkspaceState::Unavailable(_) => return Err(ContractError::WorkspaceUnavailable),
+            WorkspaceState::Maintenance(_) => return Err(ContractError::WorkspaceUnavailable),
         }
 
         if workspace.availability != WorkspaceAvailability::Available {
@@ -138,51 +220,20 @@ impl WorkspaceBooking {
             return Err(ContractError::InsufficientPayment);
         }
 
-        // Atomic overlap prevention: scan all active bookings for this workspace
-        // Overlap predicate: !(end_time <= existing.start_time || start_time >= existing.end_time)
+        // Overlap check against all active bookings for this workspace
         let workspace_bookings: Vec<u64> = storage
             .get(&DataKey::WorkspaceBookings(workspace_id))
             .unwrap_or(vec![&env]);
-        
+
         for booking_id in workspace_bookings.iter() {
             if let Some(b) = storage.get::<DataKey, Booking>(&DataKey::Booking(booking_id)) {
-                // Skip cancelled bookings
                 if b.status == BookingStatus::Cancelled {
                     continue;
                 }
-                // Check for time-range overlap
                 if !(end_time <= b.start_time || start_time >= b.end_time) {
                     return Err(ContractError::OverlappingBooking);
                 }
             }
-        }
-
-        // Apply tier-based discount via cross-contract call
-        let mut applied_discount_bps: u32 = 0;
-        let membership_contract: Address = storage
-            .get(&DataKey::MembershipContract)
-            .ok_or(ContractError::PaymentTokenNotSet)?;
-        
-        // Try to get member's token status; if fails, proceed at full price
-        let tier_discounts: TierDiscounts = storage
-            .get(&DataKey::TierDiscounts)
-            .unwrap_or(TierDiscounts {
-                guest: 0,
-                member: 500,
-                gold: 1000,
-                platinum: 1500,
-            });
-
-        // Attempt cross-contract call to get token status
-        // If it fails, we proceed at full price (no panic)
-        if let Ok(token_status) = Self::get_member_token_status(&env, &membership_contract, &member) {
-            applied_discount_bps = match token_status {
-                0 => tier_discounts.guest,      // Guest
-                1 => tier_discounts.member,     // Member
-                2 => tier_discounts.gold,       // Gold
-                3 => tier_discounts.platinum,   // Platinum
-                _ => 0,
-            };
         }
 
         let id: u64 = storage.get(&DataKey::BookingCount).unwrap_or(0) + 1;
@@ -202,15 +253,13 @@ impl WorkspaceBooking {
         storage.extend_ttl(&DataKey::Booking(id), LEDGER_TTL, LEDGER_TTL);
         storage.set(&DataKey::BookingCount, &id);
 
-        // Add booking to workspace bookings list
-        let mut workspace_bookings: Vec<u64> = storage
+        let mut ws_bookings: Vec<u64> = storage
             .get(&DataKey::WorkspaceBookings(workspace_id))
             .unwrap_or(vec![&env]);
-        workspace_bookings.push_back(id);
-        storage.set(&DataKey::WorkspaceBookings(workspace_id), &workspace_bookings);
+        ws_bookings.push_back(id);
+        storage.set(&DataKey::WorkspaceBookings(workspace_id), &ws_bookings);
         storage.extend_ttl(&DataKey::WorkspaceBookings(workspace_id), LEDGER_TTL, LEDGER_TTL);
 
-        // Update member bookings list
         let mut member_bookings: Vec<u64> = storage
             .get(&DataKey::MemberBookings(member.clone()))
             .unwrap_or(vec![&env]);
@@ -218,13 +267,17 @@ impl WorkspaceBooking {
         storage.set(&DataKey::MemberBookings(member.clone()), &member_bookings);
         storage.extend_ttl(&DataKey::MemberBookings(member), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("book"), workspace_id), id);
+        publish_event(&env, "workspace_booking", symbol_short!("book"), (symbol_short!("book"), workspace_id), id);
         Ok(id)
     }
 
     pub fn confirm_booking(env: Env, booking_id: u64) -> Result<(), ContractError> {
         Self::require_not_paused(&env);
-        let admin: Address = env.storage().persistent().get(&DataKey::Admin).unwrap();
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::AdminNotSet)?;
         admin.require_auth();
         let storage = env.storage().persistent();
         let mut booking: Booking = storage
@@ -239,7 +292,53 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Booking(booking_id), &booking);
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("confirm_b"),), booking_id);
+        publish_event(&env, "workspace_booking", symbol_short!("confirm_b"), (symbol_short!("confirm_b"),), booking_id);
+        Ok(())
+    }
+
+    pub fn batch_confirm(env: Env, admin: Address, booking_ids: Vec<u64>) -> Result<(), ContractError> {
+        Self::require_not_paused(&env);
+        Self::require_admin(&env, &admin);
+
+        // Validate batch size - max 20 IDs to prevent ledger timeout
+        if booking_ids.len() as u32 > MAX_BATCH_SIZE {
+            return Err(ContractError::BatchTooLarge);
+        }
+
+        let storage = env.storage().persistent();
+
+        // Pre-validate all bookings before making any changes (fail-fast principle)
+        for booking_id in booking_ids.iter() {
+            let booking: Booking = storage
+                .get(&DataKey::Booking(booking_id))
+                .ok_or(ContractError::BookingNotFound)?;
+
+            if booking.status == BookingStatus::Confirmed {
+                return Err(ContractError::BookingAlreadyConfirmed);
+            }
+
+            let workspace: Workspace = storage
+                .get(&DataKey::Workspace(booking.workspace_id))
+                .ok_or(ContractError::WorkspaceNotFound)?;
+
+            // Verify workspace is not cancelled (Unavailable or Maintenance)
+            match &workspace.availability {
+                WorkspaceAvailability::Available => {},
+                WorkspaceAvailability::Unavailable(_) => return Err(ContractError::WorkspaceUnavailable),
+            }
+        }
+
+        // All validations passed, now confirm all bookings atomically
+        for booking_id in booking_ids.iter() {
+            let mut booking: Booking = storage.get(&DataKey::Booking(booking_id)).unwrap();
+            booking.status = BookingStatus::Confirmed;
+            storage.set(&DataKey::Booking(booking_id), &booking);
+            storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
+        }
+
+        // Emit batch confirmation event with admin address and count
+        publish_event(&env, "workspace_booking", symbol_short!("batch_ok"), (symbol_short!("batch_ok"),), (admin, booking_ids.len() as u32));
+
         Ok(())
     }
 
@@ -255,34 +354,18 @@ impl WorkspaceBooking {
             return Err(ContractError::AlreadyCancelled);
         }
 
-        let admin: Address = storage.get(&DataKey::Admin).ok_or(ContractError::AdminNotSet)?;
+        let admin: Address = storage
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::AdminNotSet)?;
         if caller != booking.member && caller != admin {
             return Err(ContractError::Unauthorized);
-        }
-
-        // If escrow exists, trigger refund via cross-contract call
-        if booking.escrow_id > 0 {
-            let escrow_contract: Address = storage
-                .get(&DataKey::EscrowContract)
-                .ok_or(ContractError::PaymentTokenNotSet)?;
-            
-            // Call escrow contract's refund function
-            env.invoke_contract::<(), ()>(
-                &escrow_contract,
-                &symbol_short!("refund"),
-                vec![
-                    &env,
-                    env.current_contract_address().into_val(&env),
-                    booking.escrow_id.into_val(&env),
-                ],
-            );
         }
 
         booking.status = BookingStatus::Cancelled;
         storage.set(&DataKey::Booking(booking_id), &booking);
         storage.extend_ttl(&DataKey::Booking(booking_id), LEDGER_TTL, LEDGER_TTL);
 
-        env.events().publish((symbol_short!("cancel"),), booking_id);
+        publish_event(&env, "workspace_booking", symbol_short!("cancel"), (symbol_short!("cancel"),), booking_id);
         Ok(())
     }
 
@@ -298,7 +381,9 @@ impl WorkspaceBooking {
             .get(&DataKey::Booking(booking_id))
             .ok_or(ContractError::BookingNotFound)?;
 
-        let admin: Address = storage.get(&DataKey::Admin).ok_or(ContractError::AdminNotSet)?;
+        let admin: Address = storage
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::AdminNotSet)?;
         if caller != admin {
             return Err(ContractError::Unauthorized);
         }
@@ -365,24 +450,17 @@ impl WorkspaceBooking {
 
         let old_state = workspace.state.clone();
 
-        // Validate state transitions
         match (&old_state, &new_state) {
-            // Available can transition to Unavailable or Maintenance
-            (WorkspaceState::Available, WorkspaceState::Unavailable { .. }) => {},
-            (WorkspaceState::Available, WorkspaceState::Maintenance { .. }) => {},
-            // Unavailable can transition to Available
-            (WorkspaceState::Unavailable { .. }, WorkspaceState::Available) => {},
-            // Maintenance can only transition to Available if scheduled_return has passed
-            (WorkspaceState::Maintenance { scheduled_return }, WorkspaceState::Available) => {
+            (WorkspaceState::Available, WorkspaceState::Unavailable(_)) => {}
+            (WorkspaceState::Available, WorkspaceState::Maintenance(_)) => {}
+            (WorkspaceState::Unavailable(_), WorkspaceState::Available) => {}
+            (WorkspaceState::Maintenance(scheduled_return), WorkspaceState::Available) => {
                 if env.ledger().timestamp() < *scheduled_return {
                     panic!("MaintenanceNotComplete");
                 }
-            },
-            // Maintenance can transition to Unavailable
-            (WorkspaceState::Maintenance { .. }, WorkspaceState::Unavailable { .. }) => {},
-            // Same state is a no-op
+            }
+            (WorkspaceState::Maintenance(_), WorkspaceState::Unavailable(_)) => {}
             _ if old_state == new_state => return Ok(()),
-            // All other transitions are invalid
             _ => panic!("InvalidStateTransition"),
         }
 
@@ -390,9 +468,88 @@ impl WorkspaceBooking {
         storage.set(&DataKey::Workspace(workspace_id), &workspace);
         storage.extend_ttl(&DataKey::Workspace(workspace_id), LEDGER_TTL, LEDGER_TTL);
 
-        // Emit state change event
-        env.events().publish((symbol_short!("state_chg"), workspace_id), (old_state, new_state));
+        publish_event(&env, "workspace_booking", symbol_short!("state_chg"), (symbol_short!("state_chg"), workspace_id), (old_state, new_state));
         Ok(())
+    }
+
+    pub fn get_waitlist(env: Env, workspace_id: u32) -> Vec<WaitlistEntry> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Waitlist(workspace_id))
+            .unwrap_or(vec![&env])
+    }
+
+    pub fn leave_waitlist(
+        env: Env,
+        member: Address,
+        workspace_id: u32,
+    ) -> Result<(), ContractError> {
+        member.require_auth();
+        let storage = env.storage().persistent();
+        let waitlist: Vec<WaitlistEntry> = storage
+            .get(&DataKey::Waitlist(workspace_id))
+            .unwrap_or(vec![&env]);
+
+        let mut found = false;
+        let mut new_waitlist: Vec<WaitlistEntry> = vec![&env];
+        for entry in waitlist.iter() {
+            if entry.member == member && !found {
+                found = true;
+            } else {
+                new_waitlist.push_back(entry);
+            }
+        }
+
+        if !found {
+            return Err(ContractError::NotInWaitlist);
+        }
+
+        storage.set(&DataKey::Waitlist(workspace_id), &new_waitlist);
+        storage.extend_ttl(&DataKey::Waitlist(workspace_id), LEDGER_TTL, LEDGER_TTL);
+        Ok(())
+    }
+
+    pub fn get_tier_discounts(env: Env) -> TierDiscounts {
+        env.storage()
+            .persistent()
+            .get(&DataKey::TierDiscounts)
+            .unwrap_or(TierDiscounts {
+                guest: 0,
+                member: 500,
+                gold: 1000,
+                platinum: 1500,
+            })
+    }
+
+    pub fn update_tier_discounts(
+        env: Env,
+        caller: Address,
+        guest: u32,
+        member: u32,
+        gold: u32,
+        platinum: u32,
+    ) -> Result<(), ContractError> {
+        Self::require_admin(&env, &caller);
+        env.storage().persistent().set(
+            &DataKey::TierDiscounts,
+            &TierDiscounts {
+                guest,
+                member,
+                gold,
+                platinum,
+            },
+        );
+        Ok(())
+    }
+
+    /// WASM-upgrade hook.  Called by the admin immediately after deploying a
+    /// new WASM binary.  Runs any pending storage schema migrations so that
+    /// old on-chain data remains accessible under the new code.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: soroban_sdk::BytesN<32>) {
+        Self::require_admin(&env, &admin);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        // Add MigrationStep instances here as the schema evolves.
+        common_types::run_migrations(&env, &[]);
     }
 
     // --- helpers ---
@@ -419,52 +576,5 @@ impl WorkspaceBooking {
             panic!("unauthorized");
         }
         admin
-    }
-
-    fn get_member_token_status(env: &Env, membership_contract: &Address, member: &Address) -> Result<u32, ContractError> {
-        use soroban_sdk::IntoVal;
-        
-        // Cross-contract call to membership_token.get_token_status(member)
-        // Returns MembershipStatus enum as u32: Active=0, Expired=1, Revoked=2, GracePeriod=3
-        let result: Result<u32, _> = env.invoke_contract(
-            membership_contract,
-            &symbol_short!("get_tier"),
-            soroban_sdk::vec![env, member.clone().into_val(env)],
-        );
-        
-        result.map_err(|_| ContractError::PaymentTokenNotSet)
-    }
-
-    pub fn get_tier_discounts(env: Env) -> TierDiscounts {
-        env.storage()
-            .persistent()
-            .get(&DataKey::TierDiscounts)
-            .unwrap_or(TierDiscounts {
-                guest: 0,
-                member: 500,
-                gold: 1000,
-                platinum: 1500,
-            })
-    }
-
-    pub fn update_tier_discounts(
-        env: Env,
-        caller: Address,
-        guest: u32,
-        member: u32,
-        gold: u32,
-        platinum: u32,
-    ) -> Result<(), ContractError> {
-        Self::require_admin(&env, &caller);
-        let tier_discounts = TierDiscounts {
-            guest,
-            member,
-            gold,
-            platinum,
-        };
-        env.storage()
-            .persistent()
-            .set(&DataKey::TierDiscounts, &tier_discounts);
-        Ok(())
     }
 }

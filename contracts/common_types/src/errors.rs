@@ -1,4 +1,4 @@
-use soroban_sdk::{contracterror, String};
+use soroban_sdk::contracterror;
 
 /// Unified error enum for all cross-contract operations
 #[contracterror]
@@ -49,4 +49,17 @@ pub enum ContractError {
     // General
     Overflow = 30,
     InvalidInput = 31,
+
+    // Booking lifecycle
+    AlreadyCancelled = 32,
+    PaymentTokenNotSet = 33,
+    InsufficientAllowance = 34,
+
+    // Workspace type registry
+    UnknownWorkspaceType = 35,
+    WorkspaceTypeAlreadyExists = 36,
+
+    // Batch & lifecycle
+    BatchTooLarge = 37,
+    ContractPaused = 38,
 }

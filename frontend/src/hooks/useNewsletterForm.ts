@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useToast } from "@/components/ui/ToastProvider";
 
 export interface UseNewsletterFormResult {
@@ -27,9 +27,8 @@ export function useNewsletterForm(): UseNewsletterFormResult {
       showToast("success", "Successfully subscribed to the newsletter!");
       setEmail("");
     },
-    onError: (error: unknown) => {
-      const axiosError = error as { response?: { status?: number } } | undefined;
-      if (axiosError?.response?.status === 409) {
+    onError: (error: AxiosError) => {
+      if (error.response?.status === 409) {
         showToast("error", "This email is already subscribed.");
       } else {
         showToast("error", "An error occurred while subscribing.");
