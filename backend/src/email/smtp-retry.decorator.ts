@@ -41,22 +41,23 @@ export function Retry(options: RetryOptions = {}) {
             logger.log(`${propertyKey} succeeded on attempt ${attempt}`);
           }
           return result;
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error;
+          const message = error instanceof Error ? error.message : String(error);
 
           if (!isRetryableError(error)) {
-            logger.warn(`${propertyKey} failed with non-retryable error: ${error.message}`);
+            logger.warn(`${propertyKey} failed with non-retryable error: ${message}`);
             throw error;
           }
 
           if (attempt < maxAttempts) {
             const delay = backoffMs[attempt - 1] || backoffMs[backoffMs.length - 1];
             logger.warn(
-              `${propertyKey} attempt ${attempt} failed: ${error.message}. Retrying in ${delay}ms...`,
+              `${propertyKey} attempt ${attempt} failed: ${message}. Retrying in ${delay}ms...`,
             );
             await new Promise((resolve) => setTimeout(resolve, delay));
           } else {
-            logger.error(`${propertyKey} failed after ${maxAttempts} attempts: ${error.message}`);
+            logger.error(`${propertyKey} failed after ${maxAttempts} attempts: ${message}`);
           }
         }
       }

@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import request from 'supertest';
+import { TokenBlacklistService } from '../src/auth/token-blacklist.service';
 import { HealthController } from '../src/health/health.controller';
 import { RedisHealthIndicator } from '../src/health/indicators/redis.health-indicator';
 import { StellarHealthIndicator } from '../src/health/indicators/stellar.health-indicator';
@@ -84,6 +85,7 @@ describe('Health (e2e)', () => {
       providers: [
         JwtStrategy,
         { provide: APP_GUARD, useClass: JwtAuthGuard },
+        { provide: TokenBlacklistService, useValue: { isBlacklisted: jest.fn().mockResolvedValue(false) } },
         { provide: TypeOrmHealthIndicator, useValue: makeDbIndicator(dbHealthy) },
         { provide: RedisHealthIndicator, useValue: makeRedisIndicator(redisHealthy) },
         { provide: StellarHealthIndicator, useValue: makeOptionalIndicator('stellar_rpc', stellarHealthy) },
