@@ -1,8 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictDetectionService } from './conflict-detection.service';
 import { EntityManager } from 'typeorm';
-import { Workspace } from '../workspaces/workspace.entity';
-import { Booking, BookingStatus } from './booking.entity';
 
 describe('ConflictDetectionService', () => {
   let service: ConflictDetectionService;
@@ -55,7 +53,7 @@ describe('ConflictDetectionService', () => {
       id: 'existing-1',
       startTime: baseStart,
       endTime: baseEnd,
-      status: BookingStatus.CONFIRMED,
+      status: 'CONFIRMED' as any,
     };
 
     // 1. Touching before (ends exactly when existing starts)

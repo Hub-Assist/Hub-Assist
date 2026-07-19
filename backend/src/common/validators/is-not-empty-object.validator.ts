@@ -20,7 +20,7 @@ export class IsNotEmptyObjectConstraint implements ValidatorConstraintInterface 
 }
 
 export function IsNotEmptyObject(validationOptions?: ValidationOptions) {
-  return function (target: Object, propertyName: string) {
+  return function (target: object, propertyName: string) {
     registerDecorator({
       target: target.constructor,
       propertyName: propertyName,

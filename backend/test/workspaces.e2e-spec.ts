@@ -10,7 +10,6 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { APP_GUARD } from '@nestjs/core';
-import { Reflector } from '@nestjs/core';
 
 const JWT_SECRET = 'hubassist-secret';
 

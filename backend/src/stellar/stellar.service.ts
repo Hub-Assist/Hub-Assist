@@ -5,9 +5,6 @@ import {
   rpc,
   TransactionBuilder,
   Networks,
-  Keypair,
-  xdr,
-  Address,
   nativeToScVal,
 } from '@stellar/stellar-sdk';
 

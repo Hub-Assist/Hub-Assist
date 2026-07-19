@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { OAuthClient } from './oauth-client.entity';
@@ -76,6 +77,6 @@ export class OAuthService {
   }
 
   private generateSecret(): string {
-    return require('crypto').randomBytes(32).toString('hex');
+    return randomBytes(32).toString('hex');
   }
 }

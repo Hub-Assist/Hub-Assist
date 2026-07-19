@@ -32,7 +32,6 @@ import { CreateWorkspaceDto, UpdateWorkspaceDto } from './workspaces.dto';
 import { WorkspaceType, WorkspaceAvailability } from './workspace.entity';
 import { Audit } from '../audit/audit.decorator';
 import { AuditInterceptor } from '../audit/audit.interceptor';
-import { CapacityCheckService } from '../bookings/capacity-check.service';
 
 const WORKSPACES_CACHE_KEY = 'workspaces';
 

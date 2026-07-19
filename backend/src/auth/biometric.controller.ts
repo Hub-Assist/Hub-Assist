@@ -3,7 +3,6 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBody,
 } from '@nestjs/swagger';
 import { BiometricService } from './biometric.service';
 import {

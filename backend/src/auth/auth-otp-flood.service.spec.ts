@@ -283,7 +283,7 @@ describe('AuthService — integration: invalidation then resend', () => {
     // Step 1: OTP is invalidated
     (bcrypt.compare as jest.Mock).mockResolvedValue(false);
     const user = makeUser({ otpAttempts: 2 });
-    const { service: svc1, usersService: us1 } = buildService(user);
+    const { service: svc1, usersService: _us1 } = buildService(user);
 
     try {
       await svc1.verifyOtp(user.email, '000000');

@@ -1,31 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ReportsService } from './reports.service';
-import { Booking, BookingStatus } from '../bookings/booking.entity';
 import { Workspace, WorkspaceType } from '../workspaces/workspace.entity';
+import { BookingStatus } from '../bookings/booking.entity';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function makeBooking(overrides: Partial<Booking> = {}): Booking {
-  return {
-    id: 'b1',
-    workspaceId: 'ws1',
-    userId: 'u1',
-    startTime: new Date('2024-01-15T09:00:00Z'),
-    endTime: new Date('2024-01-15T11:00:00Z'),
-    status: BookingStatus.CONFIRMED,
-    totalAmount: 200,
-    stellarTxHash: null as any,
-    hubId: undefined,
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15'),
-    workspace: {} as any,
-    user: {} as any,
-    ...overrides,
-  };
-}
-
-// ─── Mock QueryBuilder factory ───────────────────────────────────────────────
 
 function makeQb(rawResult: any[]) {
   const qb: any = {
@@ -46,8 +25,6 @@ function makeQb(rawResult: any[]) {
 
 describe('ReportsService', () => {
   let service: ReportsService;
-  let bookingQbFactory: jest.Mock;
-  let workspaceQbFactory: jest.Mock;
 
   const mockBookingRepo = {
     createQueryBuilder: jest.fn(),
