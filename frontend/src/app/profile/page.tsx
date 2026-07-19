@@ -1,33 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Camera, Save, Lock } from "lucide-react";
+import { Camera, Save, Lock, AlertCircle } from "lucide-react";
 import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
-import { useUpdateProfile } from "@/hooks/useUpdateProfile";
+import { useUpdateProfile, type UpdateProfilePayload } from "@/hooks/useUpdateProfile";
+import { profileSchema, type ProfileFormValues } from "@/lib/schemas/profileSchema";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
-const profileSchema = z.object({
-  firstname: z.string().min(1, "First name is required"),
-  lastname: z.string().min(1, "Last name is required"),
-});
 
-const passwordSchema = z.object({
-  currentPassword: z.string().min(1, "Current password is required"),
-  newPassword: z.string().min(6, "New password must be at least 6 characters"),
-  confirmPassword: z.string().min(1, "Please confirm your new password"),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
-
-type ProfileFormData = z.infer<typeof profileSchema>;
-type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
@@ -37,23 +23,62 @@ export default function ProfilePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const profileForm = useForm<ProfileFormData>({
+  const savedValuesRef = useRef<ProfileFormValues>({
+    firstname: user?.firstname || "",
+    lastname: user?.lastname || "",
+    stellarPublicKey: user?.stellarPublicKey || "",
+  });
+
+  const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
-    defaultValues: {
-      firstname: user?.firstname || "",
-      lastname: user?.lastname || "",
-    },
+    defaultValues: savedValuesRef.current,
   });
 
-  const passwordForm = useForm<PasswordFormData>({
-    resolver: zodResolver(passwordSchema),
+  const passwordForm = useForm<{ currentPassword: string; newPassword: string; confirmPassword: string }>({
+    resolver: zodResolver(
+      z.object({
+        currentPassword: z.string().min(1, "Current password is required"),
+        newPassword: z.string().min(6, "New password must be at least 6 characters"),
+        confirmPassword: z.string().min(1, "Please confirm your new password"),
+      }).refine((data) => data.newPassword === data.confirmPassword, {
+        message: "Passwords don't match",
+        path: ["confirmPassword"],
+      }),
+    ),
   });
 
-  const handleProfileSubmit = (data: ProfileFormData) => {
-    updateProfileMutation.mutate(data);
+  const isDirty = profileForm.formState.isDirty;
+
+  const handleProfileSubmit = () => {
+    const { firstname, lastname } = profileForm.getValues();
+    const payload: UpdateProfilePayload = {};
+
+    if (firstname !== savedValuesRef.current.firstname) payload.firstname = firstname;
+    if (lastname !== savedValuesRef.current.lastname) payload.lastname = lastname;
+
+    if (Object.keys(payload).length === 0) {
+      showToast("error", "No changes to save");
+      return;
+    }
+
+    updateProfileMutation.mutate(payload, {
+      onSuccess: () => {
+        const updated: ProfileFormValues = {
+          firstname: payload.firstname ?? savedValuesRef.current.firstname,
+          lastname: payload.lastname ?? savedValuesRef.current.lastname,
+          stellarPublicKey: savedValuesRef.current.stellarPublicKey,
+        };
+        savedValuesRef.current = updated;
+        profileForm.reset(updated);
+        updateUser(updated);
+      },
+      onError: () => {
+        profileForm.reset(savedValuesRef.current);
+      },
+    });
   };
 
-  const handlePasswordSubmit = async (data: PasswordFormData) => {
+  const handlePasswordSubmit = async (data: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
     setIsChangingPassword(true);
     try {
       await api.changePassword({
@@ -83,7 +108,9 @@ export default function ProfilePage() {
 
     try {
       const response = await api.uploadProfilePicture(user.id, selectedFile);
-      updateUser({ avatar: response.avatarUrl });
+      const updatedUser = { ...user, avatar: response.avatarUrl };
+      updateUser(updatedUser);
+      savedValuesRef.current = { ...savedValuesRef.current, ...updatedUser };
       showToast("success", "Profile picture updated successfully");
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -142,7 +169,15 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Update Profile Form */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Personal Information</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold">Personal Information</h2>
+            {isDirty && (
+              <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                <AlertCircle className="h-3 w-3" />
+                Unsaved changes
+              </span>
+            )}
+          </div>
           <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">First Name</label>
@@ -168,7 +203,7 @@ export default function ProfilePage() {
                 </p>
               )}
             </div>
-            <Button type="submit" disabled={updateProfileMutation.isPending}>
+            <Button type="submit" disabled={!isDirty || updateProfileMutation.isPending}>
               {updateProfileMutation.isPending ? "Updating..." : "Update Profile"}
             </Button>
           </form>

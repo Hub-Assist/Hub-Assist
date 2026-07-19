@@ -146,7 +146,9 @@ export class WebhookService {
   }
 
   private serializeSubscription(subscription: WebhookSubscription) {
-    const { secretHash, encryptedSecret, ...safe } = subscription;
+    const { secretHash: _secretHash, encryptedSecret: _encryptedSecret, ...safe } = subscription;
+    void _secretHash;
+    void _encryptedSecret;
     return safe;
   }
 

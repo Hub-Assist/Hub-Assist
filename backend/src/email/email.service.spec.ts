@@ -8,7 +8,6 @@ import * as path from 'path';
 
 describe('EmailService and Templates', () => {
   let service: EmailService;
-  let mailerService: MailerService;
 
   const mockSendMail = jest.fn();
 
@@ -38,7 +37,6 @@ describe('EmailService and Templates', () => {
     }).compile();
 
     service = module.get<EmailService>(EmailService);
-    mailerService = module.get<MailerService>(MailerService);
   });
 
   describe('Handlebars Templates Snapshots', () => {

@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import request from 'supertest';
+import { TokenBlacklistService } from '../src/auth/token-blacklist.service';
 import { HealthController } from '../src/health/health.controller';
 import { RedisHealthIndicator } from '../src/health/indicators/redis.health-indicator';
 import { StellarHealthIndicator } from '../src/health/indicators/stellar.health-indicator';
@@ -14,6 +15,8 @@ import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from '../src/common/interceptors/logging.interceptor';
+
+const mockLogger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn(), fatal: jest.fn() };
 
 const JWT_SECRET = 'hubassist-secret';
 
@@ -82,6 +85,7 @@ describe('Health (e2e)', () => {
       providers: [
         JwtStrategy,
         { provide: APP_GUARD, useClass: JwtAuthGuard },
+        { provide: TokenBlacklistService, useValue: { isBlacklisted: jest.fn().mockResolvedValue(false) } },
         { provide: TypeOrmHealthIndicator, useValue: makeDbIndicator(dbHealthy) },
         { provide: RedisHealthIndicator, useValue: makeRedisIndicator(redisHealthy) },
         { provide: StellarHealthIndicator, useValue: makeOptionalIndicator('stellar_rpc', stellarHealthy) },
@@ -94,7 +98,7 @@ describe('Health (e2e)', () => {
     nestApp.setGlobalPrefix('api');
     nestApp.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     nestApp.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    nestApp.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    nestApp.useGlobalInterceptors(new LoggingInterceptor(mockLogger as any), new TransformInterceptor());
     await nestApp.init();
 
     jwtService = module.get(JwtService);

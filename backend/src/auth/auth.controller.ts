@@ -7,8 +7,12 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
+import { Observable, interval, map } from 'rxjs';
+import { Sse } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { OAuthService } from './oauth.service';
+import { CsrfService } from './csrf.service';
+import { SessionBroadcastService } from './session-broadcast.service';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -27,6 +31,8 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly oauthService: OAuthService,
+    private readonly csrfService: CsrfService,
+    private readonly sessionBroadcastService: SessionBroadcastService,
   ) {}
 
   @Post('register')
@@ -218,7 +224,7 @@ export class AuthController {
 
   @Post('oauth/clients')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Create OAuth client (admin only)' })
   @ApiBody({
@@ -238,7 +244,7 @@ export class AuthController {
 
   @Get('oauth/clients')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.Admin)
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'List OAuth clients (admin only)' })
   @ApiResponse({ status: 200, description: 'List of OAuth clients' })

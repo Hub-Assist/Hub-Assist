@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
 import { User, UserRole } from './user.entity';
 import { CreateUserProvider } from './providers/create-user.provider';
@@ -18,7 +17,6 @@ import { ResetPasswordProvider } from './providers/reset-password.provider';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let repository: Repository<User>;
 
   const mockRepository = {
     findOne: jest.fn(),
@@ -52,7 +50,6 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
-    repository = module.get<Repository<User>>(getRepositoryToken(User));
   });
 
   afterEach(() => {

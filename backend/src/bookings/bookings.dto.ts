@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsNumber, IsOptional, IsEnum, IsUUID, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { IsString, IsDateString, IsNumber, IsOptional, IsEnum, Matches, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { SanitizeString } from '../common/transformers/sanitize-string.transformer';
 import { AtLeastOneField } from '../common/validators/at-least-one-field.validator';

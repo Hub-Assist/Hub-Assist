@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { Booking, BookingStatus } from './booking.entity';
 import { Workspace } from '../workspaces/workspace.entity';

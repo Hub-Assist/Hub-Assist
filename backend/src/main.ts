@@ -4,12 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const compression = require('compression');
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './utils/error';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { SanitizationPipe } from './common/pipes/sanitization.pipe';
 import { VersionNegotiationMiddleware } from './common/middlewares/version-negotiation.middleware';
 

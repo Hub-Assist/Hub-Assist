@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DashboardService } from './dashboard.service';
-import { User, UserRole } from '../users/user.entity';
+import { User } from '../users/user.entity';
 import { Booking } from '../bookings/booking.entity';
 import { Workspace } from '../workspaces/workspace.entity';
 

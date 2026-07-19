@@ -88,7 +88,7 @@ import { CsrfGuard } from './auth/csrf.guard';
           return { store: redisStore, url: redisUrl, ttl: 300_000 };
         }
 
-        return { ttl: 300_000 };
+        return { store: 'memory' as any, url: undefined, ttl: 300_000 };
       },
     }),
     ScheduleModule.forRoot(),

@@ -54,7 +54,8 @@ describe('Idempotency Middleware (e2e)', () => {
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
     const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
-    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    const mockLogger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn(), fatal: jest.fn() };
+    app.useGlobalInterceptors(new LoggingInterceptor(mockLogger as any), new TransformInterceptor());
     await app.init();
 
     const connection = getConnection();

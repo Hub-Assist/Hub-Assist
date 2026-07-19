@@ -27,6 +27,8 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './users.dto';
+import { UserSearchDto } from './dto/user-search.dto';
+import { UserSearchService } from './services/user-search.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Roles } from '../common/decorators/roles.decorator';

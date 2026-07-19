@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac } from 'crypto';
 
 /**
  * TOTP (Time-based One-Time Password) Service
@@ -64,11 +64,8 @@ export class TotpService {
    * Used internally by TOTP verification
    */
   private generateHotp(secret: string, counter: number): number {
-    const crypto = require('crypto');
     const decodedSecret = this.base32Decode(secret);
-
-    // Create HMAC-SHA1
-    const hmac = crypto.createHmac('sha1', decodedSecret);
+    const hmac = createHmac('sha1', decodedSecret);
     const counterBuffer = Buffer.alloc(8);
     counterBuffer.writeBigInt64BE(BigInt(counter), 0);
     hmac.update(counterBuffer);

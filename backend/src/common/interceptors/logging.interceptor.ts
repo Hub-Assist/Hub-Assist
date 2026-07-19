@@ -4,6 +4,15 @@ import { tap } from 'rxjs/operators';
 import { LoggerService } from '../logger/logger.service';
 import { correlationStorage } from '../correlation/correlation.context';
 
+const noopLogger: Pick<LoggerService, 'log' | 'warn' | 'error' | 'debug' | 'verbose' | 'fatal'> = {
+  log: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  debug: () => undefined,
+  verbose: () => undefined,
+  fatal: () => undefined,
+};
+
 /**
  * LoggingInterceptor
  *
@@ -13,7 +22,7 @@ import { correlationStorage } from '../correlation/correlation.context';
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(private readonly logger?: LoggerService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
@@ -27,13 +36,14 @@ export class LoggingInterceptor implements NestInterceptor {
       store.userId = userId;
     }
 
-    this.logger.log(`→ ${method} ${url}`, { method, path: url });
+    const logger = this.logger ?? noopLogger;
+    logger.log(`→ ${method} ${url}`, { method, path: url });
 
     return next.handle().pipe(
       tap({
         next: () => {
           const res = context.switchToHttp().getResponse();
-          this.logger.log(`← ${method} ${url}`, {
+          logger.log(`← ${method} ${url}`, {
             method,
             path: url,
             statusCode: res.statusCode,
@@ -41,7 +51,7 @@ export class LoggingInterceptor implements NestInterceptor {
           });
         },
         error: (err: Error) => {
-          this.logger.error(`✗ ${method} ${url} — ${err.message}`, {
+          logger.error(`✗ ${method} ${url} — ${err.message}`, {
             method,
             path: url,
             durationMs: Date.now() - start,

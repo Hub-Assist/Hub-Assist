@@ -54,7 +54,9 @@ export class ContactService {
     }
 
     // Return the saved entity WITHOUT exposing spam internals to the submitter
-    const { spamScore: _score, spamFlags: _flags, ...publicResult } = saved;
+    const { spamScore, spamFlags, ...publicResult } = saved;
+    void spamScore;
+    void spamFlags;
     return publicResult;
   }
 

@@ -36,9 +36,9 @@ function makeFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.
 
 /** Simulate a successful Cloudinary upload_stream call */
 function mockSuccessfulUpload(publicId: string, secureUrl: string) {
-  mockUploadStream.mockImplementation((_opts: any, callback: Function) => {
+  mockUploadStream.mockImplementation((_opts: any, callback: (...args: unknown[]) => void) => {
     const writable = {
-      end: (buffer: Buffer) => {
+      end: (_buffer: Buffer) => {
         callback(null, { public_id: publicId, secure_url: secureUrl });
       },
     };
@@ -149,7 +149,7 @@ describe('CloudinaryService', () => {
     });
 
     it('rejects when Cloudinary returns an error', async () => {
-      mockUploadStream.mockImplementation((_opts: any, callback: Function) => ({
+      mockUploadStream.mockImplementation((_opts: any, callback: (...args: unknown[]) => void) => ({
         end: () => callback(new Error('Cloudinary network error'), undefined),
       }));
 

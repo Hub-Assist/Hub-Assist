@@ -151,7 +151,7 @@ describe('AuthService', () => {
       const email = 'test@example.com';
       const password = 'Password123';
       const accessToken = 'jwt-access-token';
-      const refreshToken = 'refresh-token-uuid';
+      const _refreshToken = 'refresh-token-uuid';
 
       usersService.findByEmail.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);

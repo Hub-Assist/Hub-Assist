@@ -20,6 +20,27 @@ export function AnalyticsChart() {
       ),
   });
 
+  if (isError) {
+    throw new Error("Failed to load analytics chart.");
+  }
+
+  const chartContent = !data?.length ? (
+    <p className="py-8 text-center text-sm text-[#6B6B6B]">No data available</p>
+  ) : (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#D7CFC6" vertical={false} />
+        <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6B6B6B" }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 11, fill: "#6B6B6B" }} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip
+          contentStyle={{ background: "#F3EBE2", border: "1px solid #D7CFC6", borderRadius: 12, fontSize: 12 }}
+          cursor={{ fill: "#EDE2D6" }}
+        />
+        <Bar dataKey="count" fill="#1A1A1A" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">

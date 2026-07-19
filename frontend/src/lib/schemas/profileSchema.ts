@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const profileSchema = z.object({
-  firstname: z.string().min(1, "First name is required"),
-  lastname: z.string().min(1, "Last name is required"),
+  firstname: z.string().min(2, "First name must be at least 2 characters"),
+  lastname: z.string().min(2, "Last name must be at least 2 characters"),
   stellarPublicKey: z
     .string()
     .optional()

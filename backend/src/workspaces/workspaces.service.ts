@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { Workspace, WorkspaceType, WorkspaceAvailability } from './workspace.entity';
-import { Amenity } from './amenity.entity';
 import { CreateWorkspaceDto, UpdateWorkspaceDto } from './workspaces.dto';
 import { AmenitiesService } from './amenities.service';
 import { Booking, BookingStatus } from '../bookings/booking.entity';
@@ -58,7 +57,6 @@ export class WorkspacesService {
         // We ensure this by checking if the count of matching amenities equals the requested count
         // or using subqueries for each amenity to be strict
         amenities.forEach((amenityName, index) => {
-          const alias = `am_${index}`;
           query.andWhere(qb => {
             const subQuery = qb.subQuery()
               .select('ws_am.workspacesId')

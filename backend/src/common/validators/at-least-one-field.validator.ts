@@ -8,7 +8,7 @@ import {
 
 @ValidatorConstraint({ name: 'atLeastOneField', async: false })
 export class AtLeastOneFieldConstraint implements ValidatorConstraintInterface {
-  validate(value: any, args: ValidationArguments): boolean {
+  validate(value: unknown, _args: ValidationArguments): boolean {
     if (typeof value !== 'object' || value === null) {
       return false;
     }
@@ -16,13 +16,13 @@ export class AtLeastOneFieldConstraint implements ValidatorConstraintInterface {
     return Object.values(value).some((v) => v !== undefined);
   }
 
-  defaultMessage(args: ValidationArguments): string {
+  defaultMessage(_args: ValidationArguments): string {
     return 'At least one field must be provided in PATCH request';
   }
 }
 
 export function AtLeastOneField(validationOptions?: ValidationOptions) {
-  return function (target: Object) {
+  return function (target: any) {
     registerDecorator({
       target: target,
       options: validationOptions,

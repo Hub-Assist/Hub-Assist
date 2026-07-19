@@ -16,7 +16,6 @@ import {
   ApiBearerAuth,
   ApiResponse,
   ApiParam,
-  ApiBody,
   ApiHeader,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -25,7 +24,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/user.entity';
 import { BookingsService } from './bookings.service';
 import { CancellationPolicyService } from './cancellation-policy.service';
-import { CreateBookingDto, UpdateBookingDto } from './bookings.dto';
+import { CreateBookingDto } from './bookings.dto';
 import {
   CreateCancellationPolicyDto,
   UpdateCancellationPolicyDto,
