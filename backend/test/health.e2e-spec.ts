@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
-import { TerminusModule, HealthCheckError } from '@nestjs/terminus';
+import { TerminusModule, HealthCheckService, TypeOrmHealthIndicator, HealthCheckError } from '@nestjs/terminus';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -96,7 +96,7 @@ describe('Health (e2e)', () => {
     nestApp.setGlobalPrefix('api');
     nestApp.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     nestApp.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    nestApp.useGlobalInterceptors(new LoggingInterceptor(mockLogger), new TransformInterceptor());
+    nestApp.useGlobalInterceptors(new LoggingInterceptor(mockLogger as any), new TransformInterceptor());
     await nestApp.init();
 
     jwtService = module.get(JwtService);

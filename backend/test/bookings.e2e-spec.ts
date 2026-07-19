@@ -48,7 +48,7 @@ describe('Bookings (e2e)', () => {
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
     const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
     const mockLogger = { log: jest.fn(), error: jest.fn(), warn: jest.fn(), debug: jest.fn(), verbose: jest.fn(), fatal: jest.fn() };
-    app.useGlobalInterceptors(new LoggingInterceptor(mockLogger), new TransformInterceptor());
+    app.useGlobalInterceptors(new LoggingInterceptor(mockLogger as any), new TransformInterceptor());
     await app.init();
 
     connection = getConnection();
