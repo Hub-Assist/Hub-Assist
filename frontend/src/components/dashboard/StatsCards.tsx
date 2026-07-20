@@ -2,10 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
-
-function SkeletonCard() {
-  return <div className="h-28 animate-pulse rounded-2xl bg-[#EDE2D6]" />;
-}
+import { StatsCardsSkeleton } from "@/components/dashboard/skeletons";
 
 interface CardProps { label: string; value: string | number; sub?: string }
 function StatCard({ label, value, sub }: Readonly<CardProps>) {
@@ -27,11 +24,7 @@ export function StatsCards() {
     }>("/dashboard/stats"),
   });
 
-  if (isPending) return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-    </div>
-  );
+  if (isPending) return <StatsCardsSkeleton />;
 
   if (isError) {
     throw new Error("Failed to load dashboard statistics.");
