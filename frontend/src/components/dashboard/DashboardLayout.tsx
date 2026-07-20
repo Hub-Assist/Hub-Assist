@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { Header } from "@/components/dashboard/Header";
 
 export function DashboardLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,17 +27,7 @@ export function DashboardLayout({ children }: Readonly<{ children: ReactNode }>)
 
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Mobile topbar */}
-        <header className="flex items-center gap-3 border-b border-[#D7CFC6] bg-[#F3EBE2] px-4 py-3 lg:hidden">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open menu"
-            className="rounded-lg p-1.5 text-[#6B6B6B] hover:bg-[#EDE2D6] hover:text-[#1A1A1A]"
-          >
-            ☰
-          </button>
-          <span className="text-base font-semibold text-[#1A1A1A]">Hubassist</span>
-        </header>
+        <Header onOpenMenu={() => setSidebarOpen(true)} />
 
         <main className="flex-1 p-6">{children}</main>
       </div>
