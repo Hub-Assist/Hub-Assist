@@ -109,6 +109,12 @@ export const useAuthStore = create<AuthStore>()(
         },
 
         logout: () => {
+          // Fire-and-forget: revoke the refresh token server-side before clearing local state.
+          // We intentionally do not await — logout must proceed even if the request fails.
+          import('@/lib/apiClient')
+            .then(({ default: apiClient }) => apiClient.post('/auth/logout').catch(() => undefined))
+            .catch(() => undefined);
+
           if (typeof document !== 'undefined') {
             document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
           }
