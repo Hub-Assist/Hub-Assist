@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Fingerprint, AlertCircle } from "lucide-react";
 import { useAuthStore } from "@/lib/store/authStore";
 import apiClient from "@/lib/apiClient";
@@ -11,97 +11,140 @@ interface BiometricLoginViewProps {
   onFallback?: () => void;
 }
 
+const MAX_RETRIES = 3;
+
+/** Feature-detects a platform authenticator (Touch ID/Face ID/Windows Hello/etc). */
+export async function isBiometricSupported(): Promise<boolean> {
+  if (typeof window === "undefined" || window.PublicKeyCredential === undefined) {
+    return false;
+  }
+
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Maps a WebAuthn failure to a user-friendly, actionable message.
+ * The raw DOMException.message is intentionally never surfaced to the user.
+ */
+function getBiometricErrorMessage(err: unknown): { message: string; isUnsupported: boolean } {
+  const name = typeof err === "object" && err !== null ? (err as { name?: string }).name : undefined;
+
+  switch (name) {
+    case "NotAllowedError":
+      return { message: "Authentication was cancelled. Please try again.", isUnsupported: false };
+    case "NotSupportedError":
+      return {
+        message: "Biometric authentication is not supported on this device or browser.",
+        isUnsupported: true,
+      };
+    case "InvalidStateError":
+      return {
+        message: "No biometric credential is set up for this account. Please use your password.",
+        isUnsupported: false,
+      };
+    case "SecurityError":
+      return {
+        message: "Biometric login requires a secure (HTTPS) connection.",
+        isUnsupported: false,
+      };
+    default:
+      break;
+  }
+
+  const responseMessage = (err as { response?: { data?: { message?: string } } } | undefined)?.response?.data
+    ?.message;
+
+  return {
+    message: responseMessage || "Biometric authentication failed. Please try again or use password login.",
+    isUnsupported: false,
+  };
+}
+
 export function BiometricLoginView({ onSuccess, onFallback }: BiometricLoginViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSupported, setIsSupported] = useState(true);
+  const [isSupported, setIsSupported] = useState<boolean | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isDisabledForSession, setIsDisabledForSession] = useState(false);
   const login = useAuthStore((s) => s.login);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    isBiometricSupported().then((supported) => {
+      if (!isMounted) return;
+      setIsSupported(supported);
+      if (!supported) onFallback?.();
+    });
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleBiometricLogin = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Check if WebAuthn is supported
-      if (!window.PublicKeyCredential) {
-        setIsSupported(false);
-        setError("Biometric authentication is not supported on this device or browser.");
-        return;
-      }
-
-      // Step 1: Get authentication options from server
       const { data: options } = await apiClient.post("/auth/biometric/login-options");
 
-      // Step 2: Use WebAuthn to authenticate
-      let credential;
-      try {
-        // Import dynamically to avoid SSR issues
-        const { startAuthentication } = await import('@simplewebauthn/browser');
-        credential = await startAuthentication(options);
-      } catch (authError: unknown) {
-        const e = authError as { name?: string };
-        if (e.name === "NotAllowedError") {
-          setError("Biometric authentication was cancelled or failed.");
-        } else if (e.name === "NotSupportedError") {
-          setError("Biometric authentication is not supported on this device.");
-          setIsSupported(false);
-        } else {
-          setError("Biometric authentication failed. Please try again.");
-        }
-        return;
-      }
+      // Import dynamically to avoid SSR issues
+      const { startAuthentication } = await import("@simplewebauthn/browser");
+      const credential = await startAuthentication(options);
 
-      // Step 3: Verify the authentication with the server
       const { data: authResult } = await apiClient.post("/auth/biometric/login-verify", {
         credential,
       });
 
-      // Step 4: Update auth state and redirect
       login({
         access_token: authResult.access_token,
         user: authResult.user,
       });
 
       onSuccess?.();
-      
-      // Redirect to dashboard
+
       if (typeof window !== "undefined") {
         window.location.href = "/dashboard";
       }
     } catch (err: unknown) {
-      console.error("Biometric login error:", err);
-      const e = err as { response?: { data?: { message?: string } } };
-      setError(
-        e.response?.data?.message || 
-        "Biometric authentication failed. Please try again or use password login."
-      );
+      const { message, isUnsupported } = getBiometricErrorMessage(err);
+      setError(message);
+
+      if (isUnsupported) {
+        // The platform genuinely doesn't support WebAuthn — hide entirely and let
+        // the parent fall back to password login.
+        setIsSupported(false);
+        onFallback?.();
+        return;
+      }
+
+      const nextRetryCount = retryCount + 1;
+      setRetryCount(nextRetryCount);
+      if (nextRetryCount >= MAX_RETRIES) {
+        setIsDisabledForSession(true);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isSupported) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <AlertCircle className="w-5 h-5 text-yellow-600" />
-          <p className="text-sm text-yellow-800">
-            Biometric authentication is not available on this device or browser.
-          </p>
-        </div>
-        {onFallback && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onFallback}
-            className="w-full"
-          >
-            Use password instead
-          </Button>
-        )}
-      </div>
-    );
+  // Still checking for platform authenticator support — render nothing to avoid a flash.
+  if (isSupported === null) {
+    return null;
   }
+
+  // Not supported — hide entirely and rely on the password login fallback rendered by the parent.
+  if (!isSupported) {
+    return null;
+  }
+
+  const attemptsRemaining = MAX_RETRIES - retryCount;
 
   return (
     <div className="space-y-4">
@@ -118,28 +161,43 @@ export function BiometricLoginView({ onSuccess, onFallback }: BiometricLoginView
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
           <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
+          <div>
+            <p className="text-sm text-red-700">{error}</p>
+            {!isDisabledForSession && retryCount > 0 && attemptsRemaining > 0 && (
+              <p className="text-xs text-red-600 mt-1">
+                {attemptsRemaining} attempt{attemptsRemaining === 1 ? "" : "s"} remaining before biometric login is
+                disabled for this session.
+              </p>
+            )}
+            {isDisabledForSession && (
+              <p className="text-xs text-red-600 mt-1">
+                Biometric login has been disabled for this session. Please use your password below.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
-      <Button
-        type="button"
-        onClick={handleBiometricLogin}
-        disabled={isLoading}
-        className="w-full"
-      >
-        {isLoading ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-            Authenticating...
-          </>
-        ) : (
-          <>
-            <Fingerprint className="w-4 h-4 mr-2" />
-            Sign in with Biometrics
-          </>
-        )}
-      </Button>
+      {!isDisabledForSession && (
+        <Button
+          type="button"
+          onClick={handleBiometricLogin}
+          disabled={isLoading}
+          className="w-full"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+              Authenticating...
+            </>
+          ) : (
+            <>
+              <Fingerprint className="w-4 h-4 mr-2" />
+              Sign in with Biometrics
+            </>
+          )}
+        </Button>
+      )}
 
       {onFallback && (
         <Button
