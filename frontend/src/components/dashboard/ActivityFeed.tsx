@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -12,10 +13,21 @@ function timeAgo(iso: string): string {
 }
 
 export function ActivityFeed() {
+  const pollingState = useDashboardPolling();
+
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-activity"],
     queryFn: () => get<Array<{ id: string; icon: string; description: string; timestamp: string }>>("/dashboard/activity"),
+    refetchInterval: pollingState.refetchInterval,
+    refetchIntervalInBackground: false,
   });
+
+  // Handle query state changes for adaptive polling
+  if (isError) {
+    pollingState.onError();
+  } else if (data) {
+    pollingState.onSuccess();
+  }
 
   if (isPending) return (
     <div className="flex flex-col gap-3">

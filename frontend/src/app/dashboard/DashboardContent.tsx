@@ -10,18 +10,40 @@ import { BookingRevenueChart } from "@/components/dashboard/BookingRevenueChart"
 import { WorkspaceUtilizationChart } from "@/components/dashboard/WorkspaceUtilizationChart";
 import { AttendancePatternsChart } from "@/components/dashboard/AttendancePatternsChart";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { CompactConnectionIndicator } from "@/components/dashboard/ConnectionIndicator";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 export function DashboardContent() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
+  const dashboardPolling = useDashboardPolling();
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-[#1A1A1A]">
-          Welcome back{user?.firstname ? `, ${user.firstname}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-[#6B6B6B]">Here&apos;s what&apos;s happening in your workspace today.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#1A1A1A]">
+            Welcome back{user?.firstname ? `, ${user.firstname}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-[#6B6B6B]">Here&apos;s what&apos;s happening in your workspace today.</p>
+        </div>
+        <div 
+          className={dashboardPolling.isDisconnected ? "cursor-pointer" : ""}
+          onClick={dashboardPolling.isDisconnected ? dashboardPolling.reconnect : undefined}
+          role={dashboardPolling.isDisconnected ? "button" : undefined}
+          tabIndex={dashboardPolling.isDisconnected ? 0 : undefined}
+          onKeyDown={dashboardPolling.isDisconnected ? (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              dashboardPolling.reconnect();
+            }
+          } : undefined}
+        >
+          <CompactConnectionIndicator 
+            status={dashboardPolling.connectionStatus}
+            errorCount={dashboardPolling.errorCount}
+          />
+        </div>
       </div>
 
       <QuickActions />
