@@ -5,5 +5,7 @@ export default registerAs('database', (): TypeOrmModuleOptions => ({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   autoLoadEntities: true,
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: process.env.NODE_ENV === 'test',
+  migrations: ['dist/migrations/*{.ts,.js}'],
+  migrationsRun: process.env.NODE_ENV === 'production',
 }));

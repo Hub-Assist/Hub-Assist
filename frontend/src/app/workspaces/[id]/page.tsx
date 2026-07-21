@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Clock, Users, MapPin } from "lucide-react";
 import { Workspace } from "@/types/workspace";
-import { api } from "@/lib/api";
+import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -41,7 +41,7 @@ function BookingForm({ workspace }: { workspace: Workspace }) {
 
     setIsBooking(true);
     try {
-      await api.createBooking(token, {
+      await api.createBooking({
         workspaceId: workspace.id,
         startTime: formData.startTime,
         endTime: formData.endTime,
@@ -101,14 +101,34 @@ export default function WorkspaceDetailPage() {
   const params = useParams();
   const workspaceId = params.id as string;
 
-  const { data, isLoading } = useQuery<WorkspaceResponse>({
+  const { data, isLoading, isError } = useQuery<WorkspaceResponse>({
     queryKey: ["workspace", workspaceId],
     queryFn: () => api.getWorkspace(workspaceId),
     enabled: !!workspaceId,
   });
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading workspace...</div>;
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="h-64 bg-gray-200 rounded-lg animate-pulse" />
+            <div className="h-48 bg-gray-200 rounded-lg animate-pulse" />
+          </div>
+          <div className="lg:col-span-1">
+            <div className="h-96 bg-gray-200 rounded-lg animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-8 text-center text-red-600 bg-red-50 rounded-lg m-6">
+        Failed to load workspace details. Please try again.
+      </div>
+    );
   }
 
   if (!data?.workspace) {

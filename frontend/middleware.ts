@@ -40,18 +40,23 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    const requiredRole = protectedRoutes[matchedRoute];
-    if (requiredRole) {
-      try {
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        if (payload.role !== requiredRole) {
-          return NextResponse.redirect(new URL("/dashboard", request.url));
-        }
-      } catch {
+    // Check token expiry
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (Date.now() >= payload.exp * 1000) {
         const loginUrl = new URL("/login", request.url);
         loginUrl.searchParams.set("redirect", pathname);
         return NextResponse.redirect(loginUrl);
       }
+
+      const requiredRole = protectedRoutes[matchedRoute];
+      if (requiredRole && payload.role !== requiredRole) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    } catch {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
 

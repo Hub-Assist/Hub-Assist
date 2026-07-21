@@ -1,0 +1,15 @@
+{{#> base}}
+  {{#if name}}
+    <h3>Hello {{name}},</h3>
+  {{/if}}
+  
+  <p>{{message}}</p>
+  
+  {{#if link}}
+    <p>
+      <a href="{{link}}" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px;">
+        Click Here
+      </a>
+    </p>
+  {{/if}}
+{{/base}}

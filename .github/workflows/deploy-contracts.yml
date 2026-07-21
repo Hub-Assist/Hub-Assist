@@ -1,0 +1,219 @@
+name: Deploy Contracts (Stellar testnet)
+
+# Trigger conditions:
+#   - Manual run from the Actions tab (workflow_dispatch).
+#   - Push to main that touches anything under contracts/.
+#
+# Required GitHub Actions secret:
+#   STELLAR_SECRET_KEY — Stellar account secret key (S...) with funds on
+#                        testnet to pay for contract uploads + deploys.
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Stellar network to deploy to"
+        required: true
+        default: "testnet"
+        type: choice
+        options:
+          - testnet
+          - mainnet
+  push:
+    branches: [main]
+    paths:
+      - "contracts/**"
+      - ".github/workflows/deploy-contracts.yml"
+
+concurrency:
+  group: deploy-contracts-${{ github.event.inputs.network || 'testnet' }}
+  cancel-in-progress: false
+
+env:
+  STELLAR_CLI_VERSION: "23.1.3"
+  NETWORK: ${{ github.event.inputs.network || 'testnet' }}
+
+jobs:
+  deploy:
+    name: Build, deploy, and verify contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      access_control: ${{ steps.deploy.outputs.access_control }}
+      manage_hub: ${{ steps.deploy.outputs.manage_hub }}
+      workspace_booking: ${{ steps.deploy.outputs.workspace_booking }}
+      payment_escrow: ${{ steps.deploy.outputs.payment_escrow }}
+      membership_token: ${{ steps.deploy.outputs.membership_token }}
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate STELLAR_SECRET_KEY secret is present
+        env:
+          STELLAR_SECRET_KEY: ${{ secrets.STELLAR_SECRET_KEY }}
+        run: |
+          if [ -z "$STELLAR_SECRET_KEY" ]; then
+            echo "::error::STELLAR_SECRET_KEY secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Install Rust toolchain (with wasm32v1-none)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Stellar CLI
+        run: |
+          cargo install --locked stellar-cli@${STELLAR_CLI_VERSION}
+          stellar --version
+
+      - name: Configure Stellar network and identity
+        env:
+          STELLAR_SECRET_KEY: ${{ secrets.STELLAR_SECRET_KEY }}
+        run: |
+          stellar network add "$NETWORK" \
+            --rpc-url "https://soroban-${NETWORK}.stellar.org" \
+            --network-passphrase "$( [ "$NETWORK" = "mainnet" ] && echo 'Public Global Stellar Network ; September 2015' || echo 'Test SDF Network ; September 2015' )" \
+            || true
+          echo "$STELLAR_SECRET_KEY" | stellar keys add deployer --secret-key
+          if [ "$NETWORK" = "testnet" ]; then
+            stellar keys fund deployer --network testnet || echo "Friendbot funding skipped (account may already be funded)."
+          fi
+
+      - name: Build all contracts
+        run: stellar contract build
+
+      - name: Deploy contracts
+        id: deploy
+        env:
+          STELLAR_NETWORK: ${{ env.NETWORK }}
+        run: |
+          set -euo pipefail
+
+          ENV_FILE=".env.${STELLAR_NETWORK}"
+          WASM_DIR="target/wasm32v1-none/release"
+
+          {
+            echo "# HubAssist deployed contract IDs"
+            echo "# Network: ${STELLAR_NETWORK}"
+            echo "# Deployed at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "# Commit: ${GITHUB_SHA}"
+            echo "STELLAR_NETWORK=${STELLAR_NETWORK}"
+          } > "$ENV_FILE"
+
+          deploy_one() {
+            local alias="$1"
+            local wasm="$WASM_DIR/${alias}.wasm"
+            if [ ! -f "$wasm" ]; then
+              echo "::error::WASM artifact not found for $alias at $wasm"
+              exit 1
+            fi
+            echo "::group::Deploying $alias"
+            local contract_id
+            contract_id=$(stellar contract deploy \
+              --wasm "$wasm" \
+              --source-account deployer \
+              --network "$STELLAR_NETWORK" \
+              --alias "$alias")
+            echo "Deployed $alias => $contract_id"
+            echo "${alias^^}_CONTRACT_ID=${contract_id}" >> "$ENV_FILE"
+            echo "${alias}=${contract_id}" >> "$GITHUB_OUTPUT"
+            echo "::endgroup::"
+          }
+
+          # Deploy in dependency order. common_types is a library, not a contract.
+          deploy_one access_control
+          deploy_one manage_hub
+          deploy_one workspace_booking
+          deploy_one payment_escrow
+          deploy_one membership_token
+
+          echo "Contract IDs written to contracts/${ENV_FILE}:"
+          cat "$ENV_FILE"
+
+      - name: Verify deployments (get_admin)
+        env:
+          STELLAR_NETWORK: ${{ env.NETWORK }}
+        run: |
+          set -euo pipefail
+
+          verify_one() {
+            local alias="$1"
+            local contract_id="$2"
+            echo "::group::Verifying $alias ($contract_id)"
+            # `get_admin` may or may not exist on every contract; tolerate
+            # missing methods but fail on RPC/contract-load errors.
+            if stellar contract invoke \
+                 --id "$contract_id" \
+                 --source-account deployer \
+                 --network "$STELLAR_NETWORK" \
+                 -- get_admin 2>&1 | tee /tmp/verify.log; then
+              echo "✅ $alias responded to get_admin"
+            else
+              if grep -qi "function .* not found\|UnknownFunction\|MissingValue" /tmp/verify.log; then
+                echo "⚠️  $alias has no get_admin entrypoint — skipping (contract still on-chain)."
+              else
+                echo "::error::Verification failed for $alias"
+                exit 1
+              fi
+            fi
+            echo "::endgroup::"
+          }
+
+          verify_one access_control      "${{ steps.deploy.outputs.access_control }}"
+          verify_one manage_hub          "${{ steps.deploy.outputs.manage_hub }}"
+          verify_one workspace_booking   "${{ steps.deploy.outputs.workspace_booking }}"
+          verify_one payment_escrow      "${{ steps.deploy.outputs.payment_escrow }}"
+          verify_one membership_token    "${{ steps.deploy.outputs.membership_token }}"
+
+      - name: Upload contracts env file
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-env-${{ env.NETWORK }}
+          path: contracts/.env.${{ env.NETWORK }}
+          if-no-files-found: error
+
+      - name: Commit updated .env.testnet (testnet only)
+        if: env.NETWORK == 'testnet' && github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- ".env.${NETWORK}"; then
+            echo "No changes to .env.${NETWORK} — skipping commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ".env.${NETWORK}"
+          git commit -m "chore(contracts): update ${NETWORK} contract IDs from CI run ${GITHUB_RUN_ID}"
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "## Stellar deployment summary"
+            echo ""
+            echo "**Network**: \`${NETWORK}\`"
+            echo ""
+            echo "| Contract | ID |"
+            echo "|----------|----|"
+            echo "| access_control | \`${{ steps.deploy.outputs.access_control }}\` |"
+            echo "| manage_hub | \`${{ steps.deploy.outputs.manage_hub }}\` |"
+            echo "| workspace_booking | \`${{ steps.deploy.outputs.workspace_booking }}\` |"
+            echo "| payment_escrow | \`${{ steps.deploy.outputs.payment_escrow }}\` |"
+            echo "| membership_token | \`${{ steps.deploy.outputs.membership_token }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

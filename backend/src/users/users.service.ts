@@ -11,7 +11,9 @@ import { UploadProfilePictureProvider } from './providers/upload-profile-picture
 import { ValidateUserProvider } from './providers/validate-user.provider';
 import { ForgotPasswordProvider } from './providers/forgot-password.provider';
 import { ResetPasswordProvider } from './providers/reset-password.provider';
+import { ChangePasswordProvider } from './providers/change-password.provider';
 import { User } from './user.entity';
+import { UploadResult } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
@@ -28,6 +30,7 @@ export class UsersService {
     private validateUserProvider: ValidateUserProvider,
     private forgotPasswordProvider: ForgotPasswordProvider,
     private resetPasswordProvider: ResetPasswordProvider,
+    private changePasswordProvider: ChangePasswordProvider,
   ) {}
 
   create(data: Partial<User>) {
@@ -62,8 +65,8 @@ export class UsersService {
     return this.deleteUserProvider.execute(id);
   }
 
-  updateProfilePicture(id: string, profilePictureUrl: string) {
-    return this.uploadProfilePictureProvider.execute(id, profilePictureUrl);
+  updateProfilePicture(id: string, uploadResult: UploadResult) {
+    return this.uploadProfilePictureProvider.execute(id, uploadResult);
   }
 
   validate(email: string, password: string) {
@@ -78,8 +81,7 @@ export class UsersService {
     return this.resetPasswordProvider.execute(id, newPassword);
   }
 
-  async update(id: string, data: Partial<User>) {
-    await this.repo.update(id, data);
-    return this.repo.findOne({ where: { id } });
+  changePassword(id: string, currentPassword: string, newPassword: string) {
+    return this.changePasswordProvider.execute(id, currentPassword, newPassword);
   }
 }

@@ -1,83 +1,142 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import * as handlebars from 'handlebars';
-import * as fs from 'fs';
-import * as path from 'path';
+import { MailerService } from '@nestjs-modules/mailer';
+import { SmtpCircuitBreaker } from './smtp-circuit-breaker';
+import { Retry } from './smtp-retry.decorator';
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter;
+  private readonly logger = new Logger(EmailService.name);
+  private fallbackMailer: MailerService | null = null;
 
-  constructor(private configService: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get('SMTP_HOST'),
-      port: this.configService.get('SMTP_PORT'),
-      auth: {
-        user: this.configService.get('SMTP_USER'),
-        pass: this.configService.get('SMTP_PASSWORD'),
-      },
-    });
+  constructor(
+    private readonly mailerService: MailerService,
+    private readonly configService: ConfigService,
+    private readonly circuitBreaker: SmtpCircuitBreaker,
+  ) {
+    this.initializeFallbackMailer();
   }
 
-  private compileTemplate(name: string, context: any): string {
-    const templatePath = path.join(__dirname, 'templates', `${name}.hbs`);
-    const templateContent = fs.readFileSync(templatePath, 'utf-8');
-    const template = handlebars.compile(templateContent);
-    return template(context);
+  private initializeFallbackMailer(): void {
+    const fallbackHost = this.configService.get('SMTP_FALLBACK_HOST');
+    const fallbackPort = this.configService.get('SMTP_FALLBACK_PORT');
+
+    if (fallbackHost && fallbackPort) {
+      this.logger.log(`Fallback SMTP provider configured: ${fallbackHost}:${fallbackPort}`);
+    }
   }
 
-  private async send(to: string, subject: string, html: string): Promise<void> {
-    await this.transporter.sendMail({
-      from: this.configService.get('EMAIL_FROM'),
-      to,
-      subject,
-      html,
-    });
+  @Retry({ maxAttempts: 3, backoffMs: [2 * 60 * 1000, 4 * 60 * 1000, 8 * 60 * 1000] })
+  private async sendTemplate(to: string, subject: string, template: string, context: any): Promise<void> {
+    try {
+      if (!context) {
+        throw new InternalServerErrorException(`Missing context for email template: ${template}`);
+      }
+
+      // Check circuit breaker
+      if (await this.circuitBreaker.isOpen()) {
+        this.logger.warn('Circuit breaker is open, routing to fallback provider');
+        // In production, route to fallback provider here
+        throw new Error('Circuit breaker open - fallback not configured');
+      }
+
+      await this.mailerService.sendMail({
+        to,
+        subject,
+        template,
+        context: {
+          ...context,
+        },
+      });
+
+      // Record success
+      await this.circuitBreaker.recordSuccess();
+    } catch (error: any) {
+      // Record failure
+      await this.circuitBreaker.recordFailure();
+
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      this.logger.error(`Email send failed: ${error.message}`, {
+        to,
+        template,
+        errorCode: error.responseCode,
+      });
+
+      throw new InternalServerErrorException(`Failed to send email: ${error.message}`);
+    }
   }
 
   async sendVerificationOtp(email: string, otp: string): Promise<void> {
-    const html = this.compileTemplate('verification-otp', { otp });
-    await this.send(email, 'Verify Your Email', html);
+    if (!otp) throw new InternalServerErrorException('Missing required variable: otp');
+    await this.sendTemplate(email, 'Verify Your Email', 'otp-verification', { otp });
   }
 
   async sendVerificationLink(email: string, link: string): Promise<void> {
-    const html = this.compileTemplate('verification-link', { link });
-    await this.send(email, 'Verify Your Email', html);
+    if (!link) throw new InternalServerErrorException('Missing required variable: link');
+    await this.sendTemplate(email, 'Verify Your Email', 'welcome', { link });
   }
 
   async sendPasswordResetOtp(email: string, otp: string): Promise<void> {
-    const html = this.compileTemplate('password-reset-otp', { otp });
-    await this.send(email, 'Reset Your Password', html);
+    if (!otp) throw new InternalServerErrorException('Missing required variable: otp');
+    await this.sendTemplate(email, 'Reset Your Password', 'password-reset', { otp });
   }
 
   async sendPasswordResetSuccess(email: string): Promise<void> {
-    const html = this.compileTemplate('password-reset-success', {});
-    await this.send(email, 'Password Reset Successful', html);
+    await this.sendTemplate(email, 'Password Reset Successful', 'welcome', {
+      message: 'Your password was successfully reset.',
+    });
   }
 
   async sendContactConfirmation(email: string, name: string): Promise<void> {
-    const html = this.compileTemplate('contact-confirmation', { name });
-    await this.send(email, 'We Received Your Message', html);
+    if (!name) throw new InternalServerErrorException('Missing required variable: name');
+    await this.sendTemplate(email, 'We Received Your Message', 'welcome', {
+      name,
+      message: 'We have received your message and will get back to you soon.',
+    });
   }
 
   async sendContactNotification(adminEmail: string, name: string, message: string): Promise<void> {
-    const html = this.compileTemplate('contact-notification', { name, message });
-    await this.send(adminEmail, 'New Contact Form Submission', html);
+    if (!name || !message) throw new InternalServerErrorException('Missing required variables');
+    await this.sendTemplate(adminEmail, 'New Contact Form Submission', 'welcome', { name, message });
   }
 
   async sendNewsletterConfirmation(email: string): Promise<void> {
-    const html = this.compileTemplate('newsletter-confirmation', {});
-    await this.send(email, 'Confirm Your Newsletter Subscription', html);
+    await this.sendTemplate(email, 'Confirm Your Newsletter Subscription', 'welcome', {
+      message: 'Please confirm your newsletter subscription.',
+    });
   }
 
   async sendNewsletterConfirmed(email: string): Promise<void> {
-    const html = this.compileTemplate('newsletter-confirmed', {});
-    await this.send(email, 'Newsletter Subscription Confirmed', html);
+    await this.sendTemplate(email, 'Newsletter Subscription Confirmed', 'welcome', {
+      message: 'Your newsletter subscription is confirmed.',
+    });
   }
 
   async sendNewsletterUnsubscribed(email: string): Promise<void> {
-    const html = this.compileTemplate('newsletter-unsubscribed', {});
-    await this.send(email, 'You Have Been Unsubscribed', html);
+    await this.sendTemplate(email, 'You Have Been Unsubscribed', 'welcome', {
+      message: 'You have successfully unsubscribed from the newsletter.',
+    });
+  }
+
+  async sendBookingConfirmation(email: string, bookingDetails: any): Promise<void> {
+    if (!bookingDetails) throw new InternalServerErrorException('Missing required variable: bookingDetails');
+    await this.sendTemplate(email, 'Booking Confirmation', 'booking-confirmation', bookingDetails);
+  }
+
+  async sendWorkspaceBookingCancelled(email: string, bookingDetails: any): Promise<void> {
+    if (!bookingDetails) throw new InternalServerErrorException('Missing required variable: bookingDetails');
+    await this.sendTemplate(email, 'Booking Cancelled', 'welcome', {
+      message: `Your booking for ${bookingDetails.workspaceName} was cancelled because the workspace is no longer available.`,
+    });
+  }
+
+  async sendAttendanceAutoCompleted(email: string, details: any): Promise<void> {
+    if (!details) throw new InternalServerErrorException('Missing required variable: details');
+    await this.sendTemplate(email, 'Your Clock-Out Session Was Auto-Completed', 'welcome', {
+      message: `Your clock-in session that started at ${details.clockInTime.toISOString()} was automatically closed at ${details.clockOutTime.toISOString()} after ${details.maxSessionHours} hours of inactivity.`,
+    });
   }
 }

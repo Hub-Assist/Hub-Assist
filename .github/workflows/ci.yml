@@ -7,8 +7,175 @@ on:
     branches: [main]
 
 jobs:
-  backend:
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  lint-backend:
+    name: Lint / Backend
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  lint-frontend:
+    name: Lint / Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  # ── Unit / Coverage tests ────────────────────────────────────────────────────
+  test-backend:
+    name: Test / Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run test:cov
+      - uses: codecov/codecov-action@v4
+        with:
+          directory: backend/coverage
+          flags: backend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-frontend:
+    name: Test / Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test:coverage
+      - uses: codecov/codecov-action@v4
+        with:
+          directory: frontend/coverage
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── E2E ─────────────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E / Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hubassist_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hubassist_test
+      JWT_SECRET: ci-test-secret
+      JWT_EXPIRES_IN: 1h
+      REFRESH_TOKEN_SECRET: ci-test-refresh-secret
+      REFRESH_TOKEN_EXPIRES_IN: 7d
+      NODE_ENV: test
+      FRONTEND_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run test:e2e
+
+  # ── Contracts ────────────────────────────────────────────────────────────────
+  contract-test:
+    name: Contracts / Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - name: Contracts / Event schema verification
+        run: |
+          set -e
+          raw=$(grep -R --line-number "env.events().publish" contracts | grep -vE 'contracts/common_types\.rs|contracts/common_types/src/lib\.rs' || true)
+          if [ -n "$raw" ]; then
+            echo "Raw direct env.events().publish found in contracts. Use common_types::publish_event instead."
+            echo "$raw"
+            exit 1
+          fi
+      - run: cargo test --package manage_hub --package common_types
+
+  contract-build:
+    name: Contracts / Build WASM
+    runs-on: ubuntu-latest
+    needs: contract-test
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - run: cargo build --package manage_hub --package common_types --target wasm32v1-none --release
+
+  # ── Build artifacts (depend on tests passing) ────────────────────────────────
+  build-backend:
+    name: Build / Backend
+    runs-on: ubuntu-latest
+    needs: [lint-backend, test-backend]
     defaults:
       run:
         working-directory: backend
@@ -22,8 +189,10 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  frontend:
+  build-frontend:
+    name: Build / Frontend
     runs-on: ubuntu-latest
+    needs: [lint-frontend, test-frontend]
     defaults:
       run:
         working-directory: frontend
@@ -36,15 +205,3 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
-
-  contracts:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: contracts
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32v1-none
-      - run: cargo build --target wasm32v1-none --release

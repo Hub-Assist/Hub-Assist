@@ -2,6 +2,7 @@ import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
+  LOG_LEVEL: Joi.string().valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent').optional(),
   DATABASE_URL: Joi.string().required(),
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRES_IN: Joi.string().default('1h'),
@@ -19,4 +20,7 @@ export const validationSchema = Joi.object({
   WORKSPACE_BOOKING_CONTRACT_ID: Joi.string().optional(),
   MEMBERSHIP_TOKEN_CONTRACT_ID: Joi.string().optional(),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  REDIS_URL: Joi.string().optional(),
+  HIBP_CHECK_ENABLED: Joi.boolean().default(false),
+  MAX_SESSION_HOURS: Joi.number().default(12),
 });

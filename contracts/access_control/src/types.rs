@@ -1,7 +1,7 @@
-use soroban_sdk::{contracttype, Address, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 #[contracttype]
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 pub enum UserRole {
     Guest  = 0,
     Member = 1,
@@ -26,7 +26,7 @@ pub enum ProposalAction {
     SetRole(Address, UserRole),
     RemoveRole(Address),
     SetAdmin(Address),
-    ScheduleUpgrade(Address), // new wasm hash address placeholder
+    ScheduleUpgrade(BytesN<32>), // new wasm hash
 }
 
 #[contracttype]
@@ -48,9 +48,19 @@ pub struct AccessControlConfig {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MembershipInfo {
     pub user: Address,
     pub role: UserRole,
     pub assigned_at: u64,
+}
+
+/// A pending two-step admin transfer awaiting acceptance by `address`.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingAdminTransfer {
+    /// the proposed new admin who must explicitly accept the role
+    pub address: Address,
+    /// ledger timestamp at which the transfer was proposed
+    pub proposed_at: u64,
 }

@@ -1,0 +1,11 @@
+# Development overrides: hot-reload via volume mounts, build from source
+services:
+  backend:
+    build:
+      target: builder
+    command: npm run start:dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend:/app
+      - /app/node_modules

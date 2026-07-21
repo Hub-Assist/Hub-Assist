@@ -1,6 +1,7 @@
 use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, xdr::ToXdr, Address, BytesN, Env, String, Vec};
 
 use common_types::{SubscriptionTier, TierChangeRequest, TierChangeStatus, TierChangeType, TierLevel, TierPromotion};
+use crate::tier_errors::TierError;
 
 // ── Storage keys ──────────────────────────────────────────────────────────
 #[contracttype]
@@ -43,16 +44,16 @@ impl TierManagementModule {
     // ── Tier CRUD ──────────────────────────────────────────────────────
 
     /// Create a new subscription tier
-    pub fn create_tier(env: Env, admin: Address, tier: SubscriptionTier) {
+    pub fn add_tier(env: Env, admin: Address, tier: SubscriptionTier) -> Result<(), TierError> {
         Self::require_admin(&env, &admin);
 
         let tier_id = tier.id.clone();
+        let tier_key = TierKey::Tier(tier_id.clone());
 
         // Ensure tier doesn't already exist
-        assert!(
-            !env.storage().persistent().has(&TierKey::Tier(tier_id.clone())),
-            "tier already exists"
-        );
+        if env.storage().persistent().has(&tier_key) {
+            return Err(TierError::TierAlreadyExists);
+        }
 
         // Store tier
         env.storage()
@@ -70,6 +71,8 @@ impl TierManagementModule {
 
         env.events()
             .publish((symbol_short!("tier_crt"),), (tier_id, tier.name));
+
+        Ok(())
     }
 
     /// Update an existing tier

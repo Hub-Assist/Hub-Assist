@@ -1,6 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import axios, { AxiosError } from "axios";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export interface UseNewsletterFormResult {
   readonly email: string;
@@ -12,11 +15,31 @@ export interface UseNewsletterFormResult {
 export function useNewsletterForm(): UseNewsletterFormResult {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const { showToast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: async (newEmail: string) => {
+      const response = await axios.post("/api/newsletter/subscribe", { email: newEmail });
+      return response.data;
+    },
+    onSuccess: () => {
+      setIsSubmitted(true);
+      showToast("success", "Successfully subscribed to the newsletter!");
+      setEmail("");
+    },
+    onError: (error: AxiosError) => {
+      if (error.response?.status === 409) {
+        showToast("error", "This email is already subscribed.");
+      } else {
+        showToast("error", "An error occurred while subscribing.");
+      }
+    },
+  });
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!email.trim()) return;
-    setIsSubmitted(true);
+    mutation.mutate(email);
   };
 
   return {

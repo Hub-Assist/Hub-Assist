@@ -5,7 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
+import { Amenity } from './amenity.entity';
+
 
 export enum WorkspaceType {
   HOT_DESK = 'HotDesk',
@@ -19,6 +23,11 @@ export enum WorkspaceType {
 export enum WorkspaceAvailability {
   AVAILABLE = 'Available',
   UNAVAILABLE = 'Unavailable',
+}
+
+export enum CapacityType {
+  SHARED = 'Shared',
+  EXCLUSIVE = 'Exclusive',
 }
 
 @Entity('workspaces')
@@ -41,11 +50,18 @@ export class Workspace {
   @Column({ type: 'enum', enum: WorkspaceAvailability })
   availability: WorkspaceAvailability;
 
+  @Column({ type: 'enum', enum: CapacityType, default: CapacityType.SHARED })
+  capacityType: CapacityType;
+
   @Column({ nullable: true })
   description: string;
 
-  @Column({ type: 'text', array: true, default: () => "'{}'" })
-  amenities: string[];
+  @ManyToMany(() => Amenity, (amenity) => amenity.workspaces)
+  @JoinTable({ name: 'workspace_amenities' })
+  amenities: Amenity[];
+
+  @Column({ nullable: true })
+  hubId?: string;
 
   @Column({ default: true })
   isActive: boolean;

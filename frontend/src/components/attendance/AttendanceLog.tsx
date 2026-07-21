@@ -1,4 +1,4 @@
-import type { AttendanceRecord } from "@/lib/api";
+import type { AttendanceRecord } from "@/lib/apiClient";
 
 function duration(record: AttendanceRecord) {
   if (!record.clockOut) return "Active";

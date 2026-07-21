@@ -5,22 +5,18 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Bell, Palette, Wallet, AlertTriangle } from "lucide-react";
-import { api } from "@/lib/api";
+import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
-
-const settingsSchema = z.object({
-  stellarPublicKey: z.string().optional(),
-});
+import { WalletConnect } from "@/components/stellar/WalletConnect";
 
 const deleteSchema = z.object({
   confirmEmail: z.string().min(1, "Please enter your email"),
 });
 
-type SettingsFormData = z.infer<typeof settingsSchema>;
 type DeleteFormData = z.infer<typeof deleteSchema>;
 
 export default function SettingsPage() {
@@ -33,15 +29,7 @@ export default function SettingsPage() {
     emailNewsletter: false,
   });
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const settingsForm = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      stellarPublicKey: user?.stellarPublicKey || "",
-    },
-  });
 
   const deleteForm = useForm<DeleteFormData>({
     resolver: zodResolver(deleteSchema),
@@ -82,21 +70,6 @@ export default function SettingsPage() {
     const newNotifications = { ...notifications, [key]: !notifications[key] };
     setNotifications(newNotifications);
     localStorage.setItem("notifications", JSON.stringify(newNotifications));
-  };
-
-  const handleSettingsSubmit = async (data: SettingsFormData) => {
-    if (!token || !user) return;
-
-    setIsUpdatingSettings(true);
-    try {
-      await api.updateUser(token, user.id, { stellarPublicKey: data.stellarPublicKey });
-      updateUser({ stellarPublicKey: data.stellarPublicKey });
-      showToast("success", "Settings updated successfully");
-    } catch {
-      showToast("error", "Failed to update settings");
-    } finally {
-      setIsUpdatingSettings(false);
-    }
   };
 
   const handleDeleteAccount = async (data: DeleteFormData) => {
@@ -226,23 +199,29 @@ export default function SettingsPage() {
           <Wallet className="h-5 w-5 mr-2" />
           Stellar Wallet
         </h2>
-        <form onSubmit={settingsForm.handleSubmit(handleSettingsSubmit)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Stellar Public Key</label>
-            <Input
-              {...settingsForm.register("stellarPublicKey")}
-              placeholder="Enter your Stellar public key"
-            />
-            {settingsForm.formState.errors.stellarPublicKey && (
-              <p className="text-sm text-red-600 mt-1">
-                {settingsForm.formState.errors.stellarPublicKey.message}
-              </p>
-            )}
-          </div>
-          <Button type="submit" disabled={isUpdatingSettings}>
-            {isUpdatingSettings ? "Updating..." : "Save Settings"}
-          </Button>
-        </form>
+        <WalletConnect
+          connectedKey={user.stellarPublicKey || null}
+          onConnect={async (publicKey) => {
+            if (!token || !user) return;
+            try {
+              await api.updateUser(user.id, { stellarPublicKey: publicKey });
+              updateUser({ stellarPublicKey: publicKey });
+              showToast("success", "Wallet connected successfully");
+            } catch {
+              showToast("error", "Failed to save wallet address");
+            }
+          }}
+          onDisconnect={async () => {
+            if (!token || !user) return;
+            try {
+              await api.updateUser(user.id, { stellarPublicKey: "" });
+              updateUser({ stellarPublicKey: undefined });
+              showToast("success", "Wallet disconnected");
+            } catch {
+              showToast("error", "Failed to disconnect wallet");
+            }
+          }}
+        />
       </div>
 
       {/* Danger Zone */}

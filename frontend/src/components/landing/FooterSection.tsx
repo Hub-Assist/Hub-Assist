@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LandingSection } from "@/components/landing/LandingSection";
 
 interface FooterSectionProps {
@@ -13,6 +14,14 @@ export function FooterSection({ brand }: Readonly<FooterSectionProps>) {
           <p className="max-w-xl text-sm leading-relaxed text-[#3D3D3D]">
             Workspace management and trustless operations for the next generation of hubs.
           </p>
+          <div className="flex gap-4 text-xs text-[#3D3D3D]">
+            <Link href="/privacy-policy" className="hover:underline">
+              Privacy Policy
+            </Link>
+            <Link href="/terms-of-service" className="hover:underline">
+              Terms of Service
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-8 text-sm text-[#3D3D3D]">
@@ -26,7 +35,9 @@ export function FooterSection({ brand }: Readonly<FooterSectionProps>) {
             <p className="font-semibold text-[#1A1A1A]">Company</p>
             <p>About</p>
             <p>Blog</p>
-            <p>Contact</p>
+            <Link href="/contact" className="hover:underline">
+              Contact
+            </Link>
           </div>
         </div>
       </div>

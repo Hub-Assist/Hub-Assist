@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { ClockButton } from "@/components/attendance/ClockButton";
 import { AttendanceLog } from "@/components/attendance/AttendanceLog";
@@ -16,9 +16,9 @@ export default function AttendancePage() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
 
-  const { data: records = [], isLoading } = useQuery({
+  const { data: records = [], isLoading, isError } = useQuery({
     queryKey: ["attendance", date],
-    queryFn: () => api.getAttendance(token, date),
+    queryFn: () => api.getAttendance(date),
     enabled: !!token,
   });
 
@@ -57,7 +57,15 @@ export default function AttendancePage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-[#6B6B6B]">Loading…</p>
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-[#EDE2D6] rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100">
+          Failed to load attendance records. Please try again.
+        </div>
       ) : (
         <>
           {!isAdmin && <AttendanceSummary records={records} />}

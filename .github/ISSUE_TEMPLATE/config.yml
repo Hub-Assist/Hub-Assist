@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or Discussion
+    url: https://github.com/Hub-Assist/Hub-Assist/discussions
+    about: Ask questions or share ideas in GitHub Discussions instead of filing an issue.
+  - name: Security Vulnerability
+    url: https://github.com/Hub-Assist/Hub-Assist/security/advisories/new
+    about: Report security issues privately via GitHub Security Advisories. Do NOT file a public issue.

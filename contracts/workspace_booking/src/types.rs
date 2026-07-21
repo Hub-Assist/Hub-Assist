@@ -1,18 +1,33 @@
 use soroban_sdk::{contracttype, Address, BytesN, String};
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
-pub enum WorkspaceType {
-    HotDesk,
-    DedicatedDesk,
-    PrivateOffice,
-    MeetingRoom,
-    Virtual,
-    Hybrid,
+#[derive(Clone)]
+pub struct TierDiscounts {
+    pub guest: u32,
+    pub member: u32,
+    pub gold: u32,
+    pub platinum: u32,
+}
+
+/// On-chain descriptor for a workspace type stored in the type registry.
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
+pub struct WorkspaceTypeInfo {
+    pub name: String,
+    pub description: String,
+    pub max_capacity_default: u32,
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
+pub enum WorkspaceState {
+    Available,
+    Unavailable(String),  // reason
+    Maintenance(u64),     // scheduled_return timestamp
+}
+
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
 pub enum UnavailabilityReason {
     UnderMaintenance,
     FullyBooked,
@@ -20,7 +35,7 @@ pub enum UnavailabilityReason {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum WorkspaceAvailability {
     Available,
     Unavailable(UnavailabilityReason),
@@ -31,19 +46,22 @@ pub enum WorkspaceAvailability {
 pub struct Workspace {
     pub id: u32,
     pub name: String,
-    pub workspace_type: WorkspaceType,
+    /// References a type_id in the WorkspaceTypeRegistry. Valid IDs start at 1.
+    pub type_id: u32,
     pub capacity: u32,
     pub price_per_hour: i128,
     pub availability: WorkspaceAvailability,
+    pub state: WorkspaceState,
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum BookingStatus {
     Pending,
     Confirmed,
     Cancelled,
     Completed,
+    Waitlisted,
 }
 
 #[contracttype]
@@ -57,4 +75,14 @@ pub struct Booking {
     pub amount: i128,
     pub status: BookingStatus,
     pub stellar_tx_hash: BytesN<32>,
+    pub escrow_id: u64,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct WaitlistEntry {
+    pub member: Address,
+    pub workspace_id: u32,
+    pub amount: i128,
+    pub added_at: u64,
 }

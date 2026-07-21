@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import type { AuthenticatorTransportFuture } from '@simplewebauthn/server';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -31,14 +32,14 @@ export class BiometricService {
       throw new BadRequestException('User not found');
     }
 
-    const options = await generateRegistrationOptions({
-      rpName: this.rpName,
-      rpID: this.rpID,
-      userID: userId,
-      userName: user.email,
-      userDisplayName: user.email,
-      attestationType: 'direct',
-    });
+     const options = await generateRegistrationOptions({
+       rpName: this.rpName,
+       rpID: this.rpID,
+       userID: new TextEncoder().encode(userId),
+       userName: user.email,
+       userDisplayName: user.email,
+       attestationType: 'direct',
+     });
 
     return options;
   }
@@ -68,14 +69,16 @@ export class BiometricService {
         throw new BadRequestException('Registration verification failed');
       }
 
-      const credentialId = Buffer.from(verification.registrationInfo!.credentialID).toString('base64');
-      const publicKey = JSON.stringify(verification.registrationInfo!.credentialPublicKey);
+      const credentialInfo = verification.registrationInfo!.credential;
+      const credentialId = credentialInfo.id; // base64url string
+      const publicKey = Buffer.from(credentialInfo.publicKey).toString('base64');
+      const counter = credentialInfo.counter;
 
       const credential = this.credentialRepository.create({
         userId,
         credentialId,
         publicKey,
-        counter: verification.registrationInfo!.counter,
+        counter,
       });
 
       await this.credentialRepository.save(credential);
@@ -98,9 +101,8 @@ export class BiometricService {
     }
 
     const allowCredentials = credentials.map((cred) => ({
-      id: Buffer.from(cred.credentialId, 'base64'),
-      type: 'public-key' as const,
-      transports: ['usb', 'nfc', 'ble', 'internal'] as const,
+      id: cred.credentialId,
+      transports: ['usb', 'nfc', 'ble', 'internal'] as AuthenticatorTransportFuture[],
     }));
 
     const options = await generateAuthenticationOptions({
@@ -140,8 +142,8 @@ export class BiometricService {
         expectedOrigin: this.origin,
         expectedRPID: this.rpID,
         credential: {
-          id: Buffer.from(credential.credentialId, 'base64'),
-          publicKey: Buffer.from(JSON.parse(credential.publicKey)),
+          id: credential.credentialId,
+          publicKey: Buffer.from(credential.publicKey, 'base64'),
           counter: Number(credential.counter),
           transports: ['usb', 'nfc', 'ble', 'internal'],
         },

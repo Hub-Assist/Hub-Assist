@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import { User, UserRole } from "@/types/user";
-import { api } from "@/lib/api";
+import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -31,14 +31,14 @@ export function AdminUserTable() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
 
-  const { data, isLoading } = useQuery<UsersResponse>({
+  const { data, isLoading, isError } = useQuery<UsersResponse>({
     queryKey: ["users", currentPage, search, roleFilter],
-    queryFn: () => api.getUsers(token!, { page: currentPage, limit: 10, search: search || undefined, role: roleFilter || undefined }),
+    queryFn: () => api.getUsers({ page: currentPage, limit: 10, search: search || undefined, role: roleFilter || undefined }),
     enabled: !!token,
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) => api.updateUserRole(token!, userId, role),
+    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) => api.updateUserRole(userId, role),
     onMutate: async ({ userId, role }) => {
       await queryClient.cancelQueries({ queryKey: ["users"] });
       const previousData = queryClient.getQueryData<UsersResponse>(["users", currentPage, search, roleFilter]);
@@ -69,7 +69,7 @@ export function AdminUserTable() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: ({ userId, active }: { userId: string; active: boolean }) =>
-      active ? api.activateUser(token!, userId) : api.deactivateUser(token!, userId),
+      active ? api.activateUser(userId) : api.deactivateUser(userId),
     onMutate: async ({ userId, active }) => {
       await queryClient.cancelQueries({ queryKey: ["users"] });
       const previousData = queryClient.getQueryData<UsersResponse>(["users", currentPage, search, roleFilter]);
@@ -98,7 +98,7 @@ export function AdminUserTable() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (userId: string) => api.deleteUser(token!, userId),
+    mutationFn: (userId: string) => api.deleteUser(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       showToast("success", "User deleted successfully");
@@ -115,7 +115,19 @@ export function AdminUserTable() {
   }, [data?.users]);
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading users...</div>;
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-4">
+          <div className="h-10 bg-[#EDE2D6] rounded-md flex-1 animate-pulse" />
+          <div className="h-10 w-32 bg-[#EDE2D6] rounded-md animate-pulse" />
+        </div>
+        <div className="h-96 bg-[#EDE2D6] rounded-lg animate-pulse mt-4" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    throw new Error("Failed to load users table.");
   }
 
   return (

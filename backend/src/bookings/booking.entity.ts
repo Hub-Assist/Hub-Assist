@@ -5,11 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  ForeignKey,
   JoinColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { Workspace } from '../workspaces/workspace.entity';
 import { User } from '../users/user.entity';
+import { RateSnapshot } from '../pricing/pricing.dto';
 
 export enum BookingStatus {
   PENDING = 'Pending',
@@ -24,7 +25,6 @@ export class Booking {
   id!: string;
 
   @Column()
-  @ForeignKey(() => Workspace)
   workspaceId!: string;
 
   @ManyToOne(() => Workspace)
@@ -32,7 +32,6 @@ export class Booking {
   workspace!: Workspace;
 
   @Column()
-  @ForeignKey(() => User)
   userId!: string;
 
   @ManyToOne(() => User)
@@ -54,9 +53,36 @@ export class Booking {
   @Column({ nullable: true, default: null })
   stellarTxHash!: string;
 
+  @Column({ nullable: true })
+  hubId?: string;
+
+  // ── Recurring booking fields ──────────────────────────────────────────────
+
+  @Column({ nullable: true, type: 'text' })
+  recurrenceRule?: string;
+
+  @Column({ nullable: true, type: 'uuid' })
+  seriesId?: string;
+
+  @Column({ nullable: true, type: 'int' })
+  instanceIndex?: number;
+
+  // ── Cancellation policy fields ────────────────────────────────────────────
+
+  @Column({ nullable: true, type: 'decimal', precision: 10, scale: 2 })
+  refundAmount?: number;
+
+  // ── Dynamic pricing snapshot ──────────────────────────────────────────────
+
+  @Column({ type: 'jsonb', nullable: true })
+  appliedRateSnapshot?: RateSnapshot;
+
   @CreateDateColumn()
   createdAt!: Date;
 
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
 }

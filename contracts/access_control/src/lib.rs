@@ -10,7 +10,10 @@ mod access_control_tests;
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use errors::AccessControlError;
-use types::{AccessControlConfig, MembershipInfo, MultiSigConfig, ProposalAction, UserRole};
+use types::{
+    AccessControlConfig, MembershipInfo, MultiSigConfig, PendingAdminTransfer, ProposalAction,
+    UserRole,
+};
 
 #[contract]
 pub struct AccessControlContract;
@@ -96,5 +99,39 @@ impl AccessControlContract {
         proposal_id: u64,
     ) -> Result<(), AccessControlError> {
         access_control::execute_proposal(&env, executor, proposal_id)
+    }
+
+    pub fn migrate_roles_v2(env: Env, admin: Address) -> Result<(), AccessControlError> {
+        access_control::migrate_roles_v2(&env, admin)
+    }
+
+    pub fn get_storage_version(env: Env) -> u32 {
+        access_control::get_storage_version_view(&env)
+    }
+
+    pub fn propose_admin_transfer(
+        env: Env,
+        current_admin: Address,
+        new_admin: Address,
+    ) -> Result<(), AccessControlError> {
+        access_control::propose_admin_transfer(&env, current_admin, new_admin)
+    }
+
+    pub fn accept_admin_transfer(
+        env: Env,
+        new_admin: Address,
+    ) -> Result<(), AccessControlError> {
+        access_control::accept_admin_transfer(&env, new_admin)
+    }
+
+    pub fn cancel_admin_transfer(
+        env: Env,
+        current_admin: Address,
+    ) -> Result<(), AccessControlError> {
+        access_control::cancel_admin_transfer(&env, current_admin)
+    }
+
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminTransfer> {
+        access_control::get_pending_admin_transfer(&env)
     }
 }

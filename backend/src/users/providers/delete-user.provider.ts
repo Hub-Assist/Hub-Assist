@@ -12,6 +12,6 @@ export class DeleteUserProvider {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    await this.repo.softDelete(id);
+    await this.repo.softRemove(user);
   }
 }

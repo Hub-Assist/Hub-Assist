@@ -15,7 +15,7 @@ import {
 import { Public } from '../common/decorators/public.decorator';
 
 @ApiTags('biometric')
-@Controller('auth/biometric')
+@Controller({ version: '1', path: 'auth/biometric' })
 export class BiometricController {
   constructor(private readonly biometricService: BiometricService) {}
 

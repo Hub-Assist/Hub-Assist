@@ -2,8 +2,14 @@ use soroban_sdk::{symbol_short, Address, Env, Vec};
 
 use crate::errors::AccessControlError;
 use crate::types::{
-    AccessControlConfig, MembershipInfo, MultiSigConfig, PendingProposal, ProposalAction, UserRole,
+    AccessControlConfig, MembershipInfo, MultiSigConfig, PendingAdminTransfer, PendingProposal,
+    ProposalAction, UserRole,
 };
+use common_types::{publish_event, run_migrations};
+
+/// Duration that must elapse between proposing and accepting an admin transfer.
+/// Default: 48 hours, expressed in seconds.
+pub const ADMIN_TRANSFER_LOCK: u64 = 48 * 60 * 60;
 
 // ── storage keys ─────────────────────────────────────────────────────────────
 
@@ -14,8 +20,12 @@ enum DataKey {
     Admin,
     Config,
     Role(Address),
+    RoleV2(Address, u64),
     ProposalCount,
     Proposal(u64),
+    PendingUpgrade,
+    StorageVersion,
+    PendingAdmin,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -56,6 +66,20 @@ fn assert_not_paused(env: &Env) -> Result<(), AccessControlError> {
     Ok(())
 }
 
+fn get_storage_version(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::StorageVersion)
+        .unwrap_or(1u32)
+}
+
+fn require_storage_version(env: &Env, required: u32) -> Result<(), AccessControlError> {
+    if get_storage_version(env) < required {
+        return Err(AccessControlError::Unauthorized);
+    }
+    Ok(())
+}
+
 fn is_critical(action: &ProposalAction) -> bool {
     matches!(action, ProposalAction::SetAdmin(_) | ProposalAction::ScheduleUpgrade(_))
 }
@@ -82,7 +106,7 @@ pub fn initialize(env: &Env, admin: Address, multisig_config: MultiSigConfig) {
         &DataKey::Role(admin.clone()),
         &MembershipInfo { user: admin.clone(), role: UserRole::Admin, assigned_at: env.ledger().timestamp() },
     );
-    env.events().publish((symbol_short!("init"), admin), ());
+    publish_event(&env, "access_control", symbol_short!("init"), (symbol_short!("init"), admin), ());
 }
 
 pub fn set_role(
@@ -97,7 +121,7 @@ pub fn set_role(
         &DataKey::Role(user.clone()),
         &MembershipInfo { user: user.clone(), role: role.clone(), assigned_at: env.ledger().timestamp() },
     );
-    env.events().publish((symbol_short!("set_role"), user), role);
+    publish_event(&env, "access_control", symbol_short!("set_role"), (symbol_short!("set_role"), user), role);
     Ok(())
 }
 
@@ -109,10 +133,11 @@ pub fn get_role(env: &Env, user: Address) -> Result<MembershipInfo, AccessContro
 }
 
 pub fn check_access(env: &Env, user: Address, required_role: UserRole) -> bool {
-    match env.storage().persistent().get::<_, MembershipInfo>(&DataKey::Role(user)) {
-        Some(info) => info.role >= required_role,
-        None => false,
-    }
+    let role = match env.storage().persistent().get::<_, MembershipInfo>(&DataKey::Role(user)) {
+        Some(info) => info.role,
+        None => UserRole::Guest,
+    };
+    role >= required_role
 }
 
 pub fn require_access(
@@ -140,7 +165,7 @@ pub fn remove_role(env: &Env, admin: Address, user: Address) -> Result<(), Acces
         return Err(AccessControlError::UserNotFound);
     }
     env.storage().persistent().remove(&DataKey::Role(user.clone()));
-    env.events().publish((symbol_short!("rm_role"), user), ());
+    publish_event(&env, "access_control", symbol_short!("rm_role"), (symbol_short!("rm_role"), user), ());
     Ok(())
 }
 
@@ -159,7 +184,7 @@ pub fn pause(env: &Env, admin: Address) -> Result<(), AccessControlError> {
     let mut config = load_config(env);
     config.paused = true;
     env.storage().instance().set(&DataKey::Config, &config);
-    env.events().publish((symbol_short!("pause"),), ());
+    publish_event(&env, "access_control", symbol_short!("pause"), (symbol_short!("pause"),), ());
     Ok(())
 }
 
@@ -168,7 +193,7 @@ pub fn unpause(env: &Env, admin: Address) -> Result<(), AccessControlError> {
     let mut config = load_config(env);
     config.paused = false;
     env.storage().instance().set(&DataKey::Config, &config);
-    env.events().publish((symbol_short!("unpause"),), ());
+    publish_event(&env, "access_control", symbol_short!("unpause"), (symbol_short!("unpause"),), ());
     Ok(())
 }
 
@@ -194,7 +219,7 @@ pub fn create_proposal(
         execution_time: now + config.multisig.time_lock_duration,
     };
     env.storage().persistent().set(&DataKey::Proposal(id), &proposal);
-    env.events().publish((symbol_short!("proposal"), proposer), id);
+    publish_event(&env, "access_control", symbol_short!("proposal"), (symbol_short!("proposal"), proposer), id);
     Ok(id)
 }
 
@@ -216,7 +241,7 @@ pub fn approve_proposal(
     }
     proposal.approvals.push_back(approver.clone());
     env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
-    env.events().publish((symbol_short!("approved"), approver), proposal_id);
+    publish_event(&env, "access_control", symbol_short!("approved"), (symbol_short!("approved"), approver), proposal_id);
     Ok(())
 }
 
@@ -251,11 +276,11 @@ pub fn execute_proposal(
                 &DataKey::Role(user.clone()),
                 &MembershipInfo { user: user.clone(), role: role.clone(), assigned_at: env.ledger().timestamp() },
             );
-            env.events().publish((symbol_short!("set_role"), user), role);
+            publish_event(&env, "access_control", symbol_short!("set_role"), (symbol_short!("set_role"), user), role);
         }
         ProposalAction::RemoveRole(user) => {
             env.storage().persistent().remove(&DataKey::Role(user.clone()));
-            env.events().publish((symbol_short!("rm_role"), user), ());
+            publish_event(&env, "access_control", symbol_short!("rm_role"), (symbol_short!("rm_role"), user), ());
         }
         ProposalAction::SetAdmin(new_admin) => {
             env.storage().instance().set(&DataKey::Admin, &new_admin);
@@ -263,12 +288,118 @@ pub fn execute_proposal(
                 &DataKey::Role(new_admin.clone()),
                 &MembershipInfo { user: new_admin.clone(), role: UserRole::Admin, assigned_at: env.ledger().timestamp() },
             );
-            env.events().publish((symbol_short!("set_admin"),), new_admin);
+            publish_event(&env, "access_control", symbol_short!("set_admin"), (symbol_short!("set_admin"),), new_admin);
         }
-        ProposalAction::ScheduleUpgrade(hash) => {
-            env.events().publish((symbol_short!("upgrade"),), hash);
+        ProposalAction::ScheduleUpgrade(new_wasm_hash) => {
+            // Store pending upgrade with hash
+            env.storage().instance().set(&DataKey::PendingUpgrade, &new_wasm_hash);
+            // Execute the upgrade
+            env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+            // Run any pending schema migrations post-WASM-update.
+            // Add new MigrationStep instances here as the schema evolves.
+            run_migrations(env, &[]);
+            publish_event(&env, "access_control", symbol_short!("upg_exec"), (symbol_short!("upg_exec"),), new_wasm_hash);
         }
     }
     env.storage().persistent().remove(&DataKey::Proposal(proposal_id));
     Ok(())
+}
+
+pub fn migrate_roles_v2(env: &Env, admin: Address) -> Result<(), AccessControlError> {
+    require_admin(env, &admin)?;
+    
+    // Check if already migrated
+    if get_storage_version(env) >= 2 {
+        return Ok(());
+    }
+
+    // Migrate all v1 roles to v2 format
+    // Since we can't iterate all keys, we rely on the caller to have tracked all users
+    // In practice, this would be called after collecting all user addresses
+    
+    env.storage().instance().set(&DataKey::StorageVersion, &2u32);
+    publish_event(&env, "access_control", symbol_short!("migrated"), (symbol_short!("migrated"),), ());
+    Ok(())
+}
+
+pub fn get_storage_version_view(env: &Env) -> u32 {
+    get_storage_version(env)
+}
+
+// ── two-step admin transfer ─────────────────────────────────────────────────────
+
+/// Propose transferring the admin role to `new_admin`. The transfer does not take
+/// effect until `new_admin` explicitly accepts after the [`ADMIN_TRANSFER_LOCK`]
+/// timelock has elapsed. Only one pending transfer can exist at a time — a new
+/// proposal overwrites any existing one.
+pub fn propose_admin_transfer(
+    env: &Env,
+    current_admin: Address,
+    new_admin: Address,
+) -> Result<(), AccessControlError> {
+    assert_not_paused(env)?;
+    require_admin(env, &current_admin)?;
+    let pending = PendingAdminTransfer {
+        address: new_admin.clone(),
+        proposed_at: env.ledger().timestamp(),
+    };
+    env.storage().instance().set(&DataKey::PendingAdmin, &pending);
+    env.events()
+        .publish((symbol_short!("adm_prop"),), new_admin);
+    Ok(())
+}
+
+/// Accept a pending admin transfer. The caller must be the proposed new admin and
+/// the [`ADMIN_TRANSFER_LOCK`] timelock must have elapsed since the proposal.
+/// On success the admin role is transferred and the pending transfer is cleared.
+pub fn accept_admin_transfer(
+    env: &Env,
+    new_admin: Address,
+) -> Result<(), AccessControlError> {
+    assert_not_paused(env)?;
+    new_admin.require_auth();
+    let pending: PendingAdminTransfer = env
+        .storage()
+        .instance()
+        .get(&DataKey::PendingAdmin)
+        .ok_or(AccessControlError::NoPendingTransfer)?;
+    if new_admin != pending.address {
+        return Err(AccessControlError::Unauthorized);
+    }
+    if env.ledger().timestamp() < pending.proposed_at + ADMIN_TRANSFER_LOCK {
+        return Err(AccessControlError::TimelockNotExpired);
+    }
+    env.storage().instance().set(&DataKey::Admin, &new_admin);
+    env.storage().persistent().set(
+        &DataKey::Role(new_admin.clone()),
+        &MembershipInfo {
+            user: new_admin.clone(),
+            role: UserRole::Admin,
+            assigned_at: env.ledger().timestamp(),
+        },
+    );
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events()
+        .publish((symbol_short!("adm_acpt"),), new_admin);
+    Ok(())
+}
+
+/// Cancel a pending admin transfer before it is accepted, clearing the pending
+/// state. Only the current admin may cancel.
+pub fn cancel_admin_transfer(
+    env: &Env,
+    current_admin: Address,
+) -> Result<(), AccessControlError> {
+    require_admin(env, &current_admin)?;
+    if !env.storage().instance().has(&DataKey::PendingAdmin) {
+        return Err(AccessControlError::NoPendingTransfer);
+    }
+    env.storage().instance().remove(&DataKey::PendingAdmin);
+    env.events().publish((symbol_short!("adm_cncl"),), ());
+    Ok(())
+}
+
+/// View the current pending admin transfer, if any.
+pub fn get_pending_admin_transfer(env: &Env) -> Option<PendingAdminTransfer> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
 }

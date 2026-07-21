@@ -25,7 +25,10 @@ export function ActivityFeed() {
     </div>
   );
 
-  if (isError || !data?.length) return (
+  if (isError) {
+    throw new Error("Failed to load activity feed.");
+  }
+  if (!data?.length) return (
     <p className="text-sm text-[#6B6B6B]">No recent activity.</p>
   );
 

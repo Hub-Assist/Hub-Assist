@@ -1,8 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, type AttendanceRecord } from "@/lib/api";
-import { useAuthStore } from "@/lib/store/authStore";
+import { api, type AttendanceRecord } from "@/lib/apiClient";
 import { TimePill } from "@/components/ui/TimePill";
 
 interface Props {
@@ -10,17 +9,16 @@ interface Props {
 }
 
 export function ClockButton({ activeRecord }: Props) {
-  const token = useAuthStore((s) => s.token) ?? "";
   const qc = useQueryClient();
   const isClockedIn = !!activeRecord;
 
   const clockIn = useMutation({
-    mutationFn: () => api.clockIn(token),
+    mutationFn: () => api.clockIn(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance"] }),
   });
 
   const clockOut = useMutation({
-    mutationFn: () => api.clockOut(token),
+    mutationFn: () => api.clockOut(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance"] }),
   });
 

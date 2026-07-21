@@ -11,7 +11,7 @@ import { NewsletterService } from './newsletter.service';
 import { SubscribeDto } from './newsletter.dto';
 
 @ApiTags('newsletter')
-@Controller('newsletter')
+@Controller({ version: '1', path: 'newsletter' })
 export class NewsletterController {
   constructor(private service: NewsletterService) {}
 

@@ -6,6 +6,10 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { AdminOverview } from "@/components/dashboard/AdminOverview";
+import { BookingRevenueChart } from "@/components/dashboard/BookingRevenueChart";
+import { WorkspaceUtilizationChart } from "@/components/dashboard/WorkspaceUtilizationChart";
+import { AttendancePatternsChart } from "@/components/dashboard/AttendancePatternsChart";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export function DashboardContent() {
   const user = useAuthStore((s) => s.user);
@@ -22,21 +26,47 @@ export function DashboardContent() {
 
       <QuickActions />
 
-      <StatsCards />
+      <ErrorBoundary message="Failed to load dashboard statistics.">
+        <StatsCards />
+      </ErrorBoundary>
 
-      {isAdmin && <AdminOverview />}
+      {isAdmin && (
+        <ErrorBoundary message="Failed to load admin overview.">
+          <AdminOverview />
+        </ErrorBoundary>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-3 rounded-2xl bg-[#F3EBE2] p-5">
-          <p className="text-xs font-semibold tracking-[0.1em] text-[#6B6B6B]">MEMBER GROWTH — LAST 7 DAYS</p>
-          <AnalyticsChart />
+          <ErrorBoundary message="Failed to load analytics chart.">
+            <AnalyticsChart />
+          </ErrorBoundary>
         </div>
 
         <div className="flex flex-col gap-3 rounded-2xl bg-[#F3EBE2] p-5">
           <p className="text-xs font-semibold tracking-[0.1em] text-[#6B6B6B]">RECENT ACTIVITY</p>
-          <ActivityFeed />
+          <ErrorBoundary message="Failed to load activity feed.">
+            <ActivityFeed />
+          </ErrorBoundary>
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ErrorBoundary message="Failed to load booking revenue chart.">
+            <BookingRevenueChart />
+          </ErrorBoundary>
+          <ErrorBoundary message="Failed to load workspace utilization chart.">
+            <WorkspaceUtilizationChart />
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {isAdmin && (
+        <ErrorBoundary message="Failed to load attendance patterns.">
+          <AttendancePatternsChart />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }

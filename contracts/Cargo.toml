@@ -1,12 +1,12 @@
 [workspace]
 members = [
     "hubassist_hub",
+    "manage_hub",
     "workspace_booking",
-    "membership_token",
     "access_control",
+    "membership_token",
     "payment_escrow",
     "common_types",
-    "manage_hub",
 ]
 resolver = "2"
 

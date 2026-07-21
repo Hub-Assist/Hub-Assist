@@ -1,5 +1,8 @@
 import { Injectable, PipeTransform, BadRequestException } from '@nestjs/common';
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
 @Injectable()
 export class FileValidationPipe implements PipeTransform {
   transform(file: Express.Multer.File) {
@@ -7,14 +10,14 @@ export class FileValidationPipe implements PipeTransform {
       throw new BadRequestException('No file provided');
     }
 
-    const maxSize = 5 * 1024 * 1024; // 5 MB
-    if (file.size > maxSize) {
-      throw new BadRequestException('File size exceeds 5 MB limit');
+    if (file.size > MAX_FILE_SIZE) {
+      throw new BadRequestException('File size exceeds the 5 MB limit');
     }
 
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedMimes.includes(file.mimetype)) {
-      throw new BadRequestException('Only image files are allowed');
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      );
     }
 
     return file;

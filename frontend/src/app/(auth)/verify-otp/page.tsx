@@ -59,7 +59,8 @@ function VerifyOtpContent() {
     setError(null);
     setIsPending(true);
     try {
-      await post('/auth/verify-otp', { email, otp });
+      const data = await post<{ access_token: string }>('/auth/verify-otp', { email, otp });
+      document.cookie = `token=${data.access_token}; path=/; SameSite=Lax`;
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid or expired OTP.");

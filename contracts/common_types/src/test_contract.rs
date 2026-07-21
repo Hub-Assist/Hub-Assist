@@ -32,7 +32,8 @@ mod tests {
     #[test]
     fn test_types_compile() {
         let env = Env::default();
-        let client = TypesTestContractClient::new(&env, &env.register(TypesTestContract, ()));
+        let contract_id = env.register_contract(None, TypesTestContract);
+        let client = TypesTestContractClient::new(&env, &contract_id);
         assert_eq!(client.check_status(), MembershipStatus::Active);
         assert_eq!(client.check_tier(), TierLevel::Basic);
         assert_eq!(client.check_period(), TimePeriod::Monthly);

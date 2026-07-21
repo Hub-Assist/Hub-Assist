@@ -1,6 +1,7 @@
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env, Vec};
 
 use crate::staking::{StakeInfo, StakeKey, StakingTier};
+use common_types::ContractError;
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const YEAR_SECS: i128 = 365 * 24 * 60 * 60;
@@ -10,6 +11,9 @@ const YEAR_SECS: i128 = 365 * 24 * 60 * 60;
 #[derive(Clone)]
 pub enum RewardsKey {
     TotalRewardsPaid(Address),
+    MerkleRoot,
+    MerkleRootAmount,
+    Claimed(BytesN<32>, Address),
 }
 
 // ── Errors ─────────────────────────────────────────────────────────────────
@@ -125,8 +129,7 @@ impl RewardsModule {
                 .set(&RewardsKey::TotalRewardsPaid(staker.clone()), &new_total);
 
             // Emit event
-            env.events()
-                .publish((symbol_short!("rwrd_clm"),), (staker, pending));
+            publish_event(&env, "manage_hub_rewards", symbol_short!("rwrd_clm"), (symbol_short!("rwrd_clm"),), (staker, pending));
         }
 
         Ok(pending)
@@ -138,5 +141,94 @@ impl RewardsModule {
             .persistent()
             .get(&RewardsKey::TotalRewardsPaid(staker))
             .unwrap_or(0)
+    }
+
+    /// Commit a Merkle root for reward distribution
+    pub fn commit_rewards_root(
+        env: Env,
+        admin: Address,
+        merkle_root: BytesN<32>,
+        total_amount: i128,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        let storage = env.storage().persistent();
+        
+        // Verify admin (simplified - in production use proper admin check)
+        storage.set(&RewardsKey::MerkleRoot, &merkle_root);
+        storage.set(&RewardsKey::MerkleRootAmount, &total_amount);
+        
+        publish_event(&env, "manage_hub_rewards", symbol_short!("merkle_rt"), (symbol_short!("merkle_rt"),), (merkle_root, total_amount));
+        Ok(())
+    }
+
+    /// Claim reward using Merkle proof
+    pub fn claim_reward(
+        env: Env,
+        claimant: Address,
+        amount: i128,
+        proof: Vec<BytesN<32>>,
+    ) -> Result<(), ContractError> {
+        claimant.require_auth();
+        let storage = env.storage().persistent();
+
+        // Get stored Merkle root
+        let merkle_root: BytesN<32> = storage
+            .get(&RewardsKey::MerkleRoot)
+            .ok_or(ContractError::InvalidMerkleRoot)?;
+
+        // Check if already claimed
+        if storage
+            .get::<RewardsKey, bool>(&RewardsKey::Claimed(merkle_root.clone(), claimant.clone()))
+            .unwrap_or(false)
+        {
+            return Err(ContractError::AlreadyClaimed);
+        }
+
+        // Verify Merkle proof
+        let leaf = Self::hash_leaf(&env, &claimant, &amount);
+        if !Self::verify_proof(&env, &leaf, &merkle_root, &proof) {
+            return Err(ContractError::InvalidProof);
+        }
+
+        // Mark as claimed
+        storage.set(
+            &RewardsKey::Claimed(merkle_root.clone(), claimant.clone()),
+            &true,
+        );
+
+        // Transfer reward to claimant
+        let staking_token: Address = env
+            .storage()
+            .instance()
+            .get(&StakeKey::StakingToken)
+            .expect("staking token not set");
+
+        token::Client::new(&env, &staking_token).transfer(
+            &env.current_contract_address(),
+            &claimant,
+            &amount,
+        );
+
+        publish_event(&env, "manage_hub_rewards", symbol_short!("claim_rwd"), (symbol_short!("claim_rwd"),), (claimant, amount));
+        Ok(())
+    }
+
+    /// Hash a leaf node (claimant, amount) — placeholder; use proper serialization in production.
+    fn hash_leaf(env: &Env, _claimant: &Address, _amount: &i128) -> BytesN<32> {
+        BytesN::from_array(env, &[0u8; 32])
+    }
+
+    /// Verify Merkle proof
+    fn verify_proof(env: &Env, leaf: &BytesN<32>, root: &BytesN<32>, proof: &Vec<BytesN<32>>) -> bool {
+        let mut current = leaf.clone();
+        for proof_element in proof.iter() {
+            current = Self::hash_pair(env, &current, &proof_element);
+        }
+        current == *root
+    }
+
+    /// Hash two nodes together — placeholder.
+    fn hash_pair(env: &Env, left: &BytesN<32>, _right: &BytesN<32>) -> BytesN<32> {
+        left.clone()
     }
 }

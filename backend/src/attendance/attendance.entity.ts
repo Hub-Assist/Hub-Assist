@@ -5,6 +5,7 @@ import {
   ManyToOne,
   CreateDateColumn,
   JoinColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { User } from '../users/user.entity';
 
@@ -36,4 +37,16 @@ export class Attendance {
 
   @Column({ type: 'jsonb', nullable: true })
   details?: Record<string, any>;
+
+  @Column({ nullable: true })
+  hubId?: string;
+
+  @Column({ default: false })
+  autoCompleted: boolean = false;
+
+  @Column({ nullable: true })
+  autoCompletedReason?: string;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
 }

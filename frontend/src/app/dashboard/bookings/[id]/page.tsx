@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
 import { BookingActions } from "@/components/bookings/BookingActions";
@@ -14,13 +14,32 @@ export default function BookingDetailPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
 
-  const { data: booking, isLoading } = useQuery({
+  const { data: booking, isLoading, isError } = useQuery({
     queryKey: ["booking", id],
-    queryFn: () => api.getBooking(token, id),
+    queryFn: () => api.getBooking(id),
     enabled: !!token && !!id,
   });
 
-  if (isLoading) return <p className="text-sm text-[#6B6B6B]">Loading…</p>;
+  if (isLoading) return (
+    <div className="flex flex-col gap-6 max-w-lg">
+      <div className="h-6 w-16 bg-[#EDE2D6] rounded animate-pulse" />
+      <div className="flex items-center justify-between">
+        <div className="h-8 w-48 bg-[#EDE2D6] rounded animate-pulse" />
+        <div className="h-6 w-24 bg-[#EDE2D6] rounded-full animate-pulse" />
+      </div>
+      <div className="h-48 bg-[#EDE2D6] rounded-2xl animate-pulse" />
+    </div>
+  );
+  
+  if (isError) return (
+    <div className="flex flex-col gap-6 max-w-lg">
+      <button onClick={() => router.back()} className="text-sm text-[#6B6B6B] hover:text-[#1A1A1A] w-fit">← Back</button>
+      <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100">
+        Failed to load booking details. Please try again.
+      </div>
+    </div>
+  );
+  
   if (!booking) return <p className="text-sm text-[#6B6B6B]">Booking not found.</p>;
 
   const rows: [string, string][] = [

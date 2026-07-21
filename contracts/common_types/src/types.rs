@@ -1,7 +1,34 @@
-use soroban_sdk::{contracttype, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
+
+/// A pending withdrawal created when a staker calls `unstake()`.
+/// The principal (and accrued rewards up to that point) cannot be claimed
+/// until `env.ledger().timestamp() >= claimable_at`.
+#[contracttype]
+#[derive(Clone)]
+pub struct PendingWithdrawal {
+    /// Token amount (principal + rewards at unstake time) waiting for release.
+    pub amount: i128,
+    /// Unix timestamp after which `claim_unstaked` is allowed.
+    pub claimable_at: u64,
+    /// The staker address this withdrawal belongs to.
+    pub staker: Address,
+}
 
 #[contracttype]
 #[derive(Clone, PartialEq)]
+pub enum FeatureFlag {
+    MeetingRoomAccess,
+    PrivateOfficeAccess,
+    HotDeskAccess,
+    EventAccess,
+    NetworkingAccess,
+    AnalyticsAccess,
+    ApiAccess,
+    PrioritySupport,
+}
+
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
 pub enum MembershipStatus {
     Active,
     Expired,
@@ -10,7 +37,7 @@ pub enum MembershipStatus {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TierLevel {
     Basic,
     Standard,
@@ -115,8 +142,23 @@ pub struct PeakHourData {
     pub occupancy_count: u32,
 }
 
+/// Aggregate peak-hour analytics for on-chain consumption.
+/// Returned by `AttendanceLogModule::aggregate_peak_hours`.
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
+pub struct AggregatePeakHourData {
+    /// UTC hour (0-23) adjusted for the user's timezone offset that had the most clock-ins.
+    pub peak_arrival_hour: u32,
+    /// UTC hour (0-23) adjusted for the user's timezone offset that had the most clock-outs.
+    pub peak_departure_hour: u32,
+    /// Average session duration in minutes across the analysis window.
+    pub avg_session_duration_minutes: u32,
+    /// Sliding window in days that was used (≤ 90).
+    pub window_days: u32,
+}
+
+#[contracttype]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TimePeriod {
     Daily,
     Weekly,
@@ -135,7 +177,7 @@ pub struct UserAttendanceStats {
 }
 
 #[contracttype]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum SubscriptionStatus {
     Active,
     Cancelled,
@@ -158,4 +200,13 @@ pub struct Subscription {
     pub pause_count: u32,
     pub paused_at: u64,
     pub pause_reason: String,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct EntitlementResult {
+    pub has_access: bool,
+    pub tier: TierLevel,
+    pub feature: FeatureFlag,
+    pub reason: String,
 }

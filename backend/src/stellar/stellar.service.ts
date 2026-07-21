@@ -39,6 +39,15 @@ export class StellarService {
     }
   }
 
+  async publishPaymentEvent(eventType: string, payload: Record<string, any>): Promise<void> {
+    if (payload?.stellarTxHash) {
+      const txResponse = await this.verifyTransaction(payload.stellarTxHash);
+      if (txResponse.status && !['SUCCESS', 'PENDING'].includes(txResponse.status)) {
+        throw new Error(`Stellar transaction ${payload.stellarTxHash} status is ${txResponse.status}`);
+      }
+    }
+  }
+
   async getBookingFromContract(bookingId: string): Promise<any> {
     if (!this.workspaceBookingContractId) {
       throw new Error('Workspace booking contract ID not configured');

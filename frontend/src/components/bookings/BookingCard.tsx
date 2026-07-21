@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Booking } from "@/lib/api";
+import type { Booking } from "@/lib/apiClient";
 import { BookingStatusBadge } from "./BookingStatusBadge";
 
 interface Props {

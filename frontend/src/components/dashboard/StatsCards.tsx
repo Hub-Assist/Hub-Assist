@@ -33,7 +33,11 @@ export function StatsCards() {
     </div>
   );
 
-  if (isError || !data) return null;
+  if (isError) {
+    throw new Error("Failed to load dashboard statistics.");
+  }
+
+  if (!data) return null;
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

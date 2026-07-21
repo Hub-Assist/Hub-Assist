@@ -1,4 +1,4 @@
-import type { BookingStatus } from "@/lib/api";
+import type { BookingStatus } from "@/lib/apiClient";
 
 const styles: Record<BookingStatus, string> = {
   pending:   "bg-yellow-100 text-yellow-800",

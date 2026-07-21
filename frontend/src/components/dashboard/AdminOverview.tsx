@@ -4,14 +4,18 @@ import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
 
 export function AdminOverview() {
-  const { data, isPending } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => get<{ pendingBookings?: number; revenueThisMonth?: number }>("/dashboard/stats"),
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["dashboard-admin-stats"],
+    queryFn: () => get<{ totalBookings?: number; revenue?: number }>("/dashboard/admin-stats"),
   });
 
+  if (isError) {
+    throw new Error("Failed to load admin overview"); // will be caught by ErrorBoundary
+  }
+
   const stats = [
-    { label: "PENDING BOOKINGS", value: isPending ? "—" : (data?.pendingBookings ?? 0) },
-    { label: "REVENUE THIS MONTH", value: isPending ? "—" : `$${data?.revenueThisMonth ?? 0}` },
+    { label: "TOTAL BOOKINGS", value: isPending ? "—" : (data?.totalBookings ?? 0) },
+    { label: "TOTAL REVENUE", value: isPending ? "—" : `$${data?.revenue ?? 0}` },
   ];
 
   return (

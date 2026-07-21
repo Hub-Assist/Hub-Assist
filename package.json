@@ -1,0 +1,18 @@
+{
+  "name": "hubassist",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HubAssist monorepo — backend, frontend, and Soroban contracts.",
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev:backend": "npm --prefix backend run start:dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "test:backend": "npm --prefix backend test",
+    "test:frontend": "npm --prefix frontend test",
+    "deploy:frontend": "cd frontend && vercel deploy --prod",
+    "deploy:frontend:preview": "cd frontend && vercel deploy",
+    "validate-env": "node backend/scripts/validate-env.js"
+  }
+}

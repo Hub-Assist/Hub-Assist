@@ -1,86 +1,117 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
+import { InternalServerErrorException } from '@nestjs/common';
+import { MailerService } from '@nestjs-modules/mailer';
 import { EmailService } from './email.service';
-import * as nodemailer from 'nodemailer';
-import * as fs from 'fs';
 import * as handlebars from 'handlebars';
+import * as fs from 'fs';
+import * as path from 'path';
 
-jest.mock('nodemailer');
-jest.mock('fs');
-jest.mock('handlebars');
-
-const sendMailMock = jest.fn();
-
-(nodemailer.createTransport as jest.Mock).mockReturnValue({
-  sendMail: sendMailMock,
-});
-
-(fs.readFileSync as jest.Mock).mockReturnValue('<p>{{otp}}</p>');
-(handlebars.compile as jest.Mock).mockReturnValue((ctx: any) => `<p>${JSON.stringify(ctx)}</p>`);
-
-describe('EmailService', () => {
+describe('EmailService and Templates', () => {
   let service: EmailService;
+  let mailerService: MailerService;
+
+  const mockSendMail = jest.fn();
+
+  beforeAll(() => {
+    // Register layout for snapshot tests
+    const layoutPath = path.join(__dirname, 'templates/layouts/base.hbs');
+    if (fs.existsSync(layoutPath)) {
+      const layoutContent = fs.readFileSync(layoutPath, 'utf-8');
+      handlebars.registerPartial('base', layoutContent);
+    }
+  });
 
   beforeEach(async () => {
-    sendMailMock.mockReset();
-    sendMailMock.mockResolvedValue({});
+    mockSendMail.mockReset();
+    mockSendMail.mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,
         {
-          provide: ConfigService,
-          useValue: { get: (key: string) => `mock_${key}` },
+          provide: MailerService,
+          useValue: {
+            sendMail: mockSendMail,
+          },
         },
       ],
     }).compile();
 
     service = module.get<EmailService>(EmailService);
+    mailerService = module.get<MailerService>(MailerService);
   });
 
-  it('sendVerificationOtp calls sendMail with correct to and subject', async () => {
-    await service.sendVerificationOtp('user@test.com', '123456');
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'user@test.com', subject: 'Verify Your Email' }),
-    );
+  describe('Handlebars Templates Snapshots', () => {
+    const renderTemplate = (templateName: string, context: any) => {
+      const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
+      const templateContent = fs.readFileSync(templatePath, 'utf-8');
+      const template = handlebars.compile(templateContent);
+      return template(context);
+    };
+
+    it('matches otp-verification snapshot', () => {
+      const html = renderTemplate('otp-verification', { otp: '123456' });
+      expect(html).toMatchSnapshot();
+    });
+
+    it('matches password-reset snapshot', () => {
+      const html = renderTemplate('password-reset', { otp: '654321' });
+      expect(html).toMatchSnapshot();
+    });
+
+    it('matches booking-confirmation snapshot', () => {
+      const html = renderTemplate('booking-confirmation', {
+        workspaceName: 'Premium Private Office',
+        date: '2026-10-15',
+        startTime: '09:00 AM',
+        endTime: '05:00 PM',
+      });
+      expect(html).toMatchSnapshot();
+    });
+
+    it('matches welcome snapshot', () => {
+      const html = renderTemplate('welcome', {
+        name: 'John Doe',
+        message: 'Welcome to Hub-Assist!',
+        link: 'http://localhost:3000/verify',
+      });
+      expect(html).toMatchSnapshot();
+    });
   });
 
-  it('sendPasswordResetOtp calls sendMail with correct subject', async () => {
-    await service.sendPasswordResetOtp('user@test.com', '654321');
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'user@test.com', subject: 'Reset Your Password' }),
-    );
-  });
+  describe('EmailService', () => {
+    it('throws descriptive error when required template variable is missing', async () => {
+      await expect(service.sendVerificationOtp('user@test.com', '')).rejects.toThrow(InternalServerErrorException);
+      await expect(service.sendVerificationOtp('user@test.com', '')).rejects.toThrow('Missing required variable: otp');
+    });
 
-  it('sendContactConfirmation calls sendMail with correct subject', async () => {
-    await service.sendContactConfirmation('user@test.com', 'Alice');
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'user@test.com', subject: 'We Received Your Message' }),
-    );
-  });
+    it('sendVerificationOtp calls sendMail with correct context', async () => {
+      await service.sendVerificationOtp('user@test.com', '123456');
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ 
+          to: 'user@test.com', 
+          subject: 'Verify Your Email',
+          template: 'otp-verification',
+          context: { otp: '123456' }
+        }),
+      );
+    });
 
-  it('sendContactNotification calls sendMail with correct subject', async () => {
-    await service.sendContactNotification('admin@test.com', 'Alice', 'Hello');
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'admin@test.com',
-        subject: 'New Contact Form Submission',
-      }),
-    );
-  });
+    it('sendBookingConfirmation calls sendMail with correct context', async () => {
+      await service.sendBookingConfirmation('user@test.com', { workspaceName: 'Test' });
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({ 
+          to: 'user@test.com', 
+          subject: 'Booking Confirmation',
+          template: 'booking-confirmation',
+          context: { workspaceName: 'Test' }
+        }),
+      );
+    });
 
-  it('sendNewsletterConfirmation calls sendMail with correct subject', async () => {
-    await service.sendNewsletterConfirmation('user@test.com');
-    expect(sendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'user@test.com',
-        subject: 'Confirm Your Newsletter Subscription',
-      }),
-    );
-  });
-
-  it('propagates sendMail rejection', async () => {
-    sendMailMock.mockRejectedValue(new Error('SMTP error'));
-    await expect(service.sendVerificationOtp('user@test.com', '000')).rejects.toThrow('SMTP error');
+    it('propagates sendMail rejection', async () => {
+      mockSendMail.mockRejectedValue(new Error('SMTP error'));
+      await expect(service.sendVerificationOtp('user@test.com', '123456')).rejects.toThrow('Failed to send email: SMTP error');
+    });
   });
 });
