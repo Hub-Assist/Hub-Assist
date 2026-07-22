@@ -22,35 +22,19 @@ function LoginContentInner() {
         <p className="mt-1 text-sm text-text-tertiary">Welcome back — enter your details below.</p>
       </div>
 
-      {showBiometric ? (
+      {showBiometric && (
         <>
-          <BiometricLoginView
-            onFallback={() => setShowBiometric(false)}
-          />
+          <BiometricLoginView onFallback={() => setShowBiometric(false)} />
 
           <div className="flex items-center gap-3">
             <hr className="flex-1 border-text/20" />
             <span className="text-xs text-text-tertiary">or</span>
             <hr className="flex-1 border-text/20" />
           </div>
-
-          <LoginForm />
-        </>
-      ) : (
-        <>
-          <LoginForm />
-
-          <div className="flex items-center gap-3">
-            <hr className="flex-1 border-text/20" />
-            <span className="text-xs text-text-tertiary">or</span>
-            <hr className="flex-1 border-text/20" />
-          </div>
-
-          <BiometricLoginView
-            onFallback={() => setShowBiometric(false)}
-          />
         </>
       )}
+
+      <LoginForm />
     </div>
   );
 }
