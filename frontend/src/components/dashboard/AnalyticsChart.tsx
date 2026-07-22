@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { get } from "@/lib/apiClient";
 import { AnalyticsChartSkeleton } from "@/components/dashboard/skeletons";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 type Period = "7d" | "30d" | "90d";
 

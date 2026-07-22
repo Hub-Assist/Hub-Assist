@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
 import { ActivityFeedSkeleton } from "@/components/dashboard/skeletons";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);

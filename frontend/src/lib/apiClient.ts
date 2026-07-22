@@ -112,6 +112,10 @@ export interface AttendanceRecord {
   clockIn: string;
   clockOut?: string;
   date: string;
+  isAnomaly?: boolean;
+  anomalyReason?: string;
+  autoCompleted?: boolean;
+  autoCompletedReason?: string;
 }
 
 // API functions
@@ -184,8 +188,14 @@ export const api = {
   cancelBooking: (id: string) =>
     patch<Booking>(`/bookings/${id}/cancel`),
 
-  getAttendance: (date?: string) =>
-    get<AttendanceRecord[]>(`/attendance${date ? `?date=${date}` : ''}`),
+  getAttendance: (date?: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (date) params.append("date", date);
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    const query = params.toString();
+    return get<AttendanceRecord[]>(`/attendance${query ? `?${query}` : ""}`);
+  },
 
   clockIn: () =>
     post<AttendanceRecord>('/attendance/clock-in'),
