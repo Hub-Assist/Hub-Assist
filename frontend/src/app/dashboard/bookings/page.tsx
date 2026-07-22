@@ -9,6 +9,7 @@ import { BookingCard } from "@/components/bookings/BookingCard";
 import { Button } from "@/components/ui/Button";
 import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
 import { enumCodec } from "@/lib/filters/codecs";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 type BookingTab = BookingStatus | "all";
 
