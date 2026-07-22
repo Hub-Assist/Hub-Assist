@@ -3,3 +3,6 @@ export { useRegisterUser } from "./auth/useRegisterUser";
 export { useForgotPassword } from "./auth/useForgotPassword";
 export { useConfirmBooking } from "./bookings/useConfirmBooking";
 export { useCancelBooking } from "./bookings/useCancelBooking";
+export { useGetNewsletterPreferences } from "./newsletter/useGetNewsletterPreferences";
+export { useUpdateNewsletterPreferences } from "./newsletter/useUpdateNewsletterPreferences";
+export { useUnsubscribeNewsletter } from "./newsletter/useUnsubscribeNewsletter";
