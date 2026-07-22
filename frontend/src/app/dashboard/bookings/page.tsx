@@ -68,11 +68,7 @@ function BookingsContent() {
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-[#EDE2D6] rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <BookingListSkeleton />
       ) : isError ? (
         <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100">
           Failed to load bookings. Please try again.

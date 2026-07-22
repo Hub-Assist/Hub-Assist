@@ -2,10 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
-
-function SkeletonCard() {
-  return <div className="h-28 animate-pulse rounded-2xl bg-[#EDE2D6]" />;
-}
+import { StatsCardsSkeleton } from "@/components/dashboard/skeletons";
 
 interface CardProps { label: string; value: string | number; sub?: string }
 function StatCard({ label, value, sub }: Readonly<CardProps>) {
