@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsFetching } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/store/authStore";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -15,8 +16,29 @@ export function DashboardContent() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
 
+  /**
+   * useIsFetching counts all active React Query fetches in the tree.
+   * When it drops to 0 every section has data (or an error) — we announce
+   * "Content loaded" to screen readers via the aria-live region below.
+   */
+  const isFetching = useIsFetching();
+
   return (
     <div className="flex flex-col gap-6">
+      {/*
+        aria-live region — visually hidden, announced by screen readers.
+        Empty string while fetching (no interruption); "Content loaded" once
+        all queries settle so AT users know the dashboard is ready.
+      */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="dashboard-live-region"
+      >
+        {isFetching === 0 ? "Content loaded" : ""}
+      </div>
+
       <div>
         <h1 className="text-2xl font-semibold text-[#1A1A1A]">
           Welcome back{user?.firstname ? `, ${user.firstname}` : ""}

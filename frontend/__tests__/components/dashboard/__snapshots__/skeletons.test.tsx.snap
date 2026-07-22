@@ -1,0 +1,236 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ActivityFeedSkeleton matches snapshot 1`] = `
+<div
+  aria-hidden="true"
+  class="flex flex-col gap-2"
+  data-testid="activity-feed-skeleton"
+>
+  <div
+    class="flex items-center gap-3 rounded-xl bg-[#F3EBE2] px-4 py-3"
+  >
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-5 shrink-0 rounded-full"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 flex-1 rounded-md"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-12 shrink-0 rounded-md"
+    />
+  </div>
+  <div
+    class="flex items-center gap-3 rounded-xl bg-[#F3EBE2] px-4 py-3"
+  >
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-5 shrink-0 rounded-full"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 flex-1 rounded-md"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-12 shrink-0 rounded-md"
+    />
+  </div>
+  <div
+    class="flex items-center gap-3 rounded-xl bg-[#F3EBE2] px-4 py-3"
+  >
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-5 shrink-0 rounded-full"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 flex-1 rounded-md"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-12 shrink-0 rounded-md"
+    />
+  </div>
+  <div
+    class="flex items-center gap-3 rounded-xl bg-[#F3EBE2] px-4 py-3"
+  >
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-5 shrink-0 rounded-full"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 flex-1 rounded-md"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-12 shrink-0 rounded-md"
+    />
+  </div>
+</div>
+`;
+
+exports[`AnalyticsChartSkeleton matches snapshot 1`] = `
+<div
+  aria-hidden="true"
+  class="flex flex-col gap-3"
+  data-testid="analytics-chart-skeleton"
+>
+  <div
+    class="flex items-center justify-between"
+  >
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 w-32 rounded-md"
+    />
+    <div
+      aria-hidden="true"
+      class="animate-pulse bg-[#EDE2D6] rounded-xl h-7 w-28 rounded-lg"
+    />
+  </div>
+  <div
+    aria-hidden="true"
+    class="animate-pulse bg-[#EDE2D6] rounded-xl h-48 rounded-2xl"
+  />
+</div>
+`;
+
+exports[`BookingListSkeleton matches snapshot 1`] = `
+<div
+  aria-hidden="true"
+  class="flex flex-col gap-3"
+  data-testid="booking-list-skeleton"
+>
+  <div
+    class="flex flex-col gap-3 rounded-2xl bg-[#F3EBE2] border border-[#D7CFC6] p-4"
+  >
+    <div
+      class="flex items-start justify-between gap-2"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 w-40 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-20 rounded-full"
+      />
+    </div>
+    <div
+      class="flex items-center gap-4"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-24 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-32 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl ml-auto h-4 w-14 rounded-md"
+      />
+    </div>
+  </div>
+  <div
+    class="flex flex-col gap-3 rounded-2xl bg-[#F3EBE2] border border-[#D7CFC6] p-4"
+  >
+    <div
+      class="flex items-start justify-between gap-2"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 w-40 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-20 rounded-full"
+      />
+    </div>
+    <div
+      class="flex items-center gap-4"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-24 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-32 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl ml-auto h-4 w-14 rounded-md"
+      />
+    </div>
+  </div>
+  <div
+    class="flex flex-col gap-3 rounded-2xl bg-[#F3EBE2] border border-[#D7CFC6] p-4"
+  >
+    <div
+      class="flex items-start justify-between gap-2"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-4 w-40 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-5 w-20 rounded-full"
+      />
+    </div>
+    <div
+      class="flex items-center gap-4"
+    >
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-24 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl h-3 w-32 rounded-md"
+      />
+      <div
+        aria-hidden="true"
+        class="animate-pulse bg-[#EDE2D6] rounded-xl ml-auto h-4 w-14 rounded-md"
+      />
+    </div>
+  </div>
+</div>
+`;
+
+exports[`Skeleton primitive matches snapshot 1`] = `
+<div
+  aria-hidden="true"
+  class="animate-pulse bg-[#EDE2D6] rounded-xl h-8 w-32 rounded-md"
+/>
+`;
+
+exports[`StatsCardsSkeleton matches snapshot 1`] = `
+<div
+  aria-hidden="true"
+  class="grid grid-cols-2 gap-4 lg:grid-cols-4"
+  data-testid="stats-cards-skeleton"
+>
+  <div
+    aria-hidden="true"
+    class="animate-pulse bg-[#EDE2D6] rounded-xl h-28 rounded-2xl"
+  />
+  <div
+    aria-hidden="true"
+    class="animate-pulse bg-[#EDE2D6] rounded-xl h-28 rounded-2xl"
+  />
+  <div
+    aria-hidden="true"
+    class="animate-pulse bg-[#EDE2D6] rounded-xl h-28 rounded-2xl"
+  />
+  <div
+    aria-hidden="true"
+    class="animate-pulse bg-[#EDE2D6] rounded-xl h-28 rounded-2xl"
+  />
+</div>
+`;

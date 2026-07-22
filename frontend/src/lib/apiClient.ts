@@ -226,4 +226,14 @@ export const api = {
 
   issueMembershipToken: (data: { userId: string; tier: number; expiryDate: string }) =>
     post<{ tokenId: string; message: string }>('/membership-tokens', data),
+
+  // Newsletter preferences (token-authenticated, no login required)
+  getNewsletterPreferences: (token: string) =>
+    get<import('@/types/newsletter').NewsletterPreferencesResponse>(`/newsletter/preferences/${token}`),
+
+  updateNewsletterPreferences: (token: string, preferences: Partial<import('@/types/newsletter').NewsletterPreferences>) =>
+    patch<{ message: string }>(`/newsletter/preferences/${token}`, preferences),
+
+  unsubscribeNewsletter: (token: string) =>
+    post<{ message: string }>(`/newsletter/unsubscribe/${token}`),
 };
