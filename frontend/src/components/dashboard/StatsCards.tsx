@@ -28,7 +28,7 @@ export function StatsCards() {
   });
 
   if (isPending) return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
     </div>
   );
@@ -40,7 +40,7 @@ export function StatsCards() {
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard label="TOTAL MEMBERS" value={data.totalMembers} />
       <StatCard label="VERIFIED MEMBERS" value={data.verifiedMembers} />
       <StatCard label="ACTIVE WORKSPACES" value={data.activeWorkspaces} />

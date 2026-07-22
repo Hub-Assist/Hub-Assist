@@ -1,10 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api, type BookingStatus } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { Button } from "@/components/ui/Button";
 import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
 import { enumCodec } from "@/lib/filters/codecs";
 
@@ -41,7 +43,12 @@ function BookingsContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-[#1A1A1A]">Bookings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-[#1A1A1A]">Bookings</h1>
+        <Link href="/dashboard/bookings/new/step-1">
+          <Button size="sm">New Booking</Button>
+        </Link>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-full bg-[#EDE2D6] p-1 w-fit">
