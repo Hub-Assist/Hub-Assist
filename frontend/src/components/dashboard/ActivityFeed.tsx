@@ -13,9 +13,13 @@ function timeAgo(iso: string): string {
 }
 
 export function ActivityFeed() {
+  const pollingState = useDashboardPolling();
+
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-activity"],
     queryFn: () => get<Array<{ id: string; icon: string; description: string; timestamp: string }>>("/dashboard/activity"),
+    refetchInterval: pollingState.refetchInterval,
+    refetchIntervalInBackground: false,
   });
 
   if (isPending) return <ActivityFeedSkeleton />;

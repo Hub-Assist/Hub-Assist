@@ -10,6 +10,7 @@ type Period = "7d" | "30d" | "90d";
 
 export function AnalyticsChart() {
   const [period, setPeriod] = useState<Period>("30d");
+  const pollingState = useDashboardPolling();
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["analytics-member-growth", period],
@@ -19,7 +20,16 @@ export function AnalyticsChart() {
           rows.map((r) => ({ date: r.date, count: r.members })),
         ),
       ),
+    refetchInterval: pollingState.refetchInterval,
+    refetchIntervalInBackground: false,
   });
+
+  // Handle query state changes for adaptive polling
+  if (isError) {
+    pollingState.onError();
+  } else if (data) {
+    pollingState.onSuccess();
+  }
 
   return (
     <div className="flex flex-col gap-3">

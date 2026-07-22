@@ -16,13 +16,24 @@ function StatCard({ label, value, sub }: Readonly<CardProps>) {
 }
 
 export function StatsCards() {
+  const pollingState = useDashboardPolling();
+
   const { data, isPending, isError } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: () => get<{
       totalMembers: number; verifiedMembers: number;
       activeWorkspaces: number; deskOccupancy: number;
     }>("/dashboard/stats"),
+    refetchInterval: pollingState.refetchInterval,
+    refetchIntervalInBackground: false,
   });
+
+  // Handle query state changes for adaptive polling
+  if (isError) {
+    pollingState.onError();
+  } else if (data) {
+    pollingState.onSuccess();
+  }
 
   if (isPending) return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

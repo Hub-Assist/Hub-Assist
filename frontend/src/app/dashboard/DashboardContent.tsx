@@ -11,10 +11,13 @@ import { BookingRevenueChart } from "@/components/dashboard/BookingRevenueChart"
 import { WorkspaceUtilizationChart } from "@/components/dashboard/WorkspaceUtilizationChart";
 import { AttendancePatternsChart } from "@/components/dashboard/AttendancePatternsChart";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { CompactConnectionIndicator } from "@/components/dashboard/ConnectionIndicator";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 export function DashboardContent() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin";
+  const dashboardPolling = useDashboardPolling();
 
   /**
    * useIsFetching counts all active React Query fetches in the tree.
