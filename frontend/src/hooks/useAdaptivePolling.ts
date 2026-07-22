@@ -47,7 +47,7 @@ export function useAdaptivePolling(config: AdaptivePollingConfig): AdaptivePolli
 
   const [errorCount, setErrorCount] = useState(0);
   const [isVisibilityPaused, setIsVisibilityPaused] = useState(false);
-  const visibilityHandlerRef = useRef<() => void>();
+  const visibilityHandlerRef = useRef<(() => void) | undefined>(undefined);
 
   // Calculate current polling interval based on error count
   const calculateInterval = useCallback((errors: number): number | false => {

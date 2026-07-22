@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
 import { StatsCardsSkeleton } from "@/components/dashboard/skeletons";
+import { useDashboardPolling } from "@/hooks/useDashboardPolling";
 
 interface CardProps { label: string; value: string | number; sub?: string }
 function StatCard({ label, value, sub }: Readonly<CardProps>) {
@@ -28,18 +30,16 @@ export function StatsCards() {
     refetchIntervalInBackground: false,
   });
 
-  // Handle query state changes for adaptive polling
-  if (isError) {
-    pollingState.onError();
-  } else if (data) {
-    pollingState.onSuccess();
-  }
+  // Handle query state changes for adaptive polling inside useEffect
+  useEffect(() => {
+    if (isError) {
+      pollingState.onError();
+    } else if (data) {
+      pollingState.onSuccess();
+    }
+  }, [isError, data, pollingState]);
 
-  if (isPending) return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-    </div>
-  );
+  if (isPending) return <StatsCardsSkeleton />;
 
   if (isError) {
     throw new Error("Failed to load dashboard statistics.");

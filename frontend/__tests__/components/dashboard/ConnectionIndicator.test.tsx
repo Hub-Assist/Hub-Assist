@@ -3,7 +3,7 @@ import {
   ConnectionIndicator, 
   CompactConnectionIndicator,
   type ConnectionStatus 
-} from "../ConnectionIndicator";
+} from "@/components/dashboard/ConnectionIndicator";
 
 describe("ConnectionIndicator", () => {
   describe("Connected status", () => {

@@ -141,7 +141,6 @@ export function CompactConnectionIndicator({
   return (
     <Icon 
       className={`h-4 w-4 ${config.color} ${config.animate ? "animate-spin" : ""} ${className}`}
-      title={config.title}
       role="status"
       aria-label={config.title}
     />

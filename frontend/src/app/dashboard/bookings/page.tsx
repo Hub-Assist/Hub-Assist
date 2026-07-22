@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
 import { enumCodec } from "@/lib/filters/codecs";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { BookingListSkeleton } from "@/components/dashboard/skeletons";
 
 type BookingTab = BookingStatus | "all";
 
@@ -90,7 +91,9 @@ function BookingsContent() {
 export default function BookingsPage() {
   return (
     <Suspense>
-      <BookingsContent />
+      <ErrorBoundary section="Bookings">
+        <BookingsContent />
+      </ErrorBoundary>
     </Suspense>
   );
 }
