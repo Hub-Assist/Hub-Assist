@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 interface WorkspaceResponse {
   workspace: Workspace;
@@ -213,7 +214,9 @@ export default function WorkspaceDetailPage() {
 
         {/* Booking Form */}
         <div className="lg:col-span-1">
-          <BookingForm workspace={workspace} />
+          <ErrorBoundary section="WorkspaceCalendar" message="Failed to load the booking scheduler.">
+            <BookingForm workspace={workspace} />
+          </ErrorBoundary>
         </div>
       </div>
     </div>

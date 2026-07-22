@@ -1,12 +1,15 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api, type BookingStatus } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingCard } from "@/components/bookings/BookingCard";
+import { Button } from "@/components/ui/Button";
 import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
 import { enumCodec } from "@/lib/filters/codecs";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 type BookingTab = BookingStatus | "all";
 
@@ -41,7 +44,12 @@ function BookingsContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-[#1A1A1A]">Bookings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-[#1A1A1A]">Bookings</h1>
+        <Link href="/dashboard/bookings/new/step-1">
+          <Button size="sm">New Booking</Button>
+        </Link>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-full bg-[#EDE2D6] p-1 w-fit">
@@ -61,11 +69,7 @@ function BookingsContent() {
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-[#EDE2D6] rounded-xl animate-pulse" />
-          ))}
-        </div>
+        <BookingListSkeleton />
       ) : isError ? (
         <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100">
           Failed to load bookings. Please try again.

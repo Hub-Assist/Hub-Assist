@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/apiClient";
-import { useDashboardPolling } from "@/hooks/useDashboardPolling";
+import { ActivityFeedSkeleton } from "@/components/dashboard/skeletons";
 
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -22,20 +22,7 @@ export function ActivityFeed() {
     refetchIntervalInBackground: false,
   });
 
-  // Handle query state changes for adaptive polling
-  if (isError) {
-    pollingState.onError();
-  } else if (data) {
-    pollingState.onSuccess();
-  }
-
-  if (isPending) return (
-    <div className="flex flex-col gap-3">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-12 animate-pulse rounded-xl bg-[#EDE2D6]" />
-      ))}
-    </div>
-  );
+  if (isPending) return <ActivityFeedSkeleton />;
 
   if (isError) {
     throw new Error("Failed to load activity feed.");

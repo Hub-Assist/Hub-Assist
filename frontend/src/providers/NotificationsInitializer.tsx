@@ -1,8 +1,8 @@
 'use client';
 
-import { useNotifications } from '@/hooks/useNotifications';
+import { useRealtimeNotifications } from '@/hooks/useNotifications';
 
 export function NotificationsInitializer() {
-  useNotifications();
+  useRealtimeNotifications();
   return null;
 }

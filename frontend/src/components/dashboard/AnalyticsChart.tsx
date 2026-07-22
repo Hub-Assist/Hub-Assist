@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { get } from "@/lib/apiClient";
-import { useDashboardPolling } from "@/hooks/useDashboardPolling";
+import { AnalyticsChartSkeleton } from "@/components/dashboard/skeletons";
 
 type Period = "7d" | "30d" | "90d";
 
@@ -48,7 +48,7 @@ export function AnalyticsChart() {
         </div>
       </div>
       {isPending ? (
-        <div className="h-48 animate-pulse rounded-2xl bg-[#EDE2D6]" />
+        <AnalyticsChartSkeleton />
       ) : (() => {
         if (isError) {
           throw new Error("Failed to load analytics chart.");
