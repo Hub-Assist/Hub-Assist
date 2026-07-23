@@ -167,7 +167,7 @@ export const api = {
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     post<{ message: string }>('/users/change-password', data),
 
-  getWorkspaces: (params?: { type?: string; availability?: boolean; minPrice?: number; maxPrice?: number }) =>
+  getWorkspaces: (params?: { type?: string; availability?: boolean; minPrice?: number; maxPrice?: number; search?: string }) =>
     get<{ workspaces: import('@/types/workspace').Workspace[] }>('/workspaces', { params }),
 
   getWorkspace: (workspaceId: string) =>

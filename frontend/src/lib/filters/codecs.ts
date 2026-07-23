@@ -30,3 +30,10 @@ export function numberCodec(): FilterCodec<number> {
     serialize: (value) => String(value),
   };
 }
+
+export function stringCodec(): FilterCodec<string> {
+  return {
+    parse: (raw) => (raw.length > 0 ? raw : undefined),
+    serialize: (value) => value,
+  };
+}
