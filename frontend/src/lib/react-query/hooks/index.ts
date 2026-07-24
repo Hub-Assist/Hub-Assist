@@ -6,3 +6,4 @@ export { useCancelBooking } from "./bookings/useCancelBooking";
 export { useGetNewsletterPreferences } from "./newsletter/useGetNewsletterPreferences";
 export { useUpdateNewsletterPreferences } from "./newsletter/useUpdateNewsletterPreferences";
 export { useUnsubscribeNewsletter } from "./newsletter/useUnsubscribeNewsletter";
+export { useWorkspaces } from "./workspaces/useWorkspaces";

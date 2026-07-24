@@ -37,4 +37,5 @@ export interface WorkspaceFilters {
   availability?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  search?: string;
 }
