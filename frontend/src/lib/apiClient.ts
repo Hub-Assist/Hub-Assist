@@ -103,6 +103,9 @@ export interface Booking {
   endTime: string;
   amount: number;
   status: BookingStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  refundAmount?: number;
 }
 
 export interface AttendanceRecord {

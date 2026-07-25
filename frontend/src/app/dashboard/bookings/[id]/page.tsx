@@ -6,6 +6,8 @@ import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
 import { BookingActions } from "@/components/bookings/BookingActions";
+import { BookingStatusTimeline } from "@/components/bookings/BookingStatusTimeline";
+import { RefundCountdown } from "@/components/bookings/RefundCountdown";
 
 export default function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +74,14 @@ export default function BookingDetailPage() {
           </div>
         ))}
       </div>
+
+      <div className="rounded-2xl border border-[#D7CFC6] bg-[#F3EBE2] p-5">
+        <BookingStatusTimeline booking={booking} />
+      </div>
+
+      {(booking.status === "pending" || booking.status === "confirmed") && (
+        <RefundCountdown startTime={booking.startTime} />
+      )}
 
       <BookingActions booking={booking} isAdmin={isAdmin} />
     </div>
