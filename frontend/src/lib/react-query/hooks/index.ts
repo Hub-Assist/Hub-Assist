@@ -7,3 +7,4 @@ export { useGetNewsletterPreferences } from "./newsletter/useGetNewsletterPrefer
 export { useUpdateNewsletterPreferences } from "./newsletter/useUpdateNewsletterPreferences";
 export { useUnsubscribeNewsletter } from "./newsletter/useUnsubscribeNewsletter";
 export { useWorkspaces } from "./workspaces/useWorkspaces";
+export { useWorkspaceAvailability } from "./workspaces/useWorkspaceAvailability";

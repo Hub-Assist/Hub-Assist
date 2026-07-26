@@ -11,19 +11,34 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { WorkspaceCalendar, type SlotSelection } from "@/components/workspaces/WorkspaceCalendar";
 
 interface WorkspaceResponse {
   workspace: Workspace;
 }
 
-function BookingForm({ workspace }: { workspace: Workspace }) {
+function BookingForm({
+  workspace,
+  initialStartTime = "",
+  initialEndTime = "",
+}: {
+  workspace: Workspace;
+  initialStartTime?: string;
+  initialEndTime?: string;
+}) {
   const { token } = useAuthStore();
   const { showToast } = useToast();
   const [isBooking, setIsBooking] = useState(false);
   const [formData, setFormData] = useState({
-    startTime: "",
-    endTime: "",
+    startTime: initialStartTime,
+    endTime: initialEndTime,
   });
+
+  // Sync external pre-fill values when the user clicks a calendar slot
+  // (only update if the new value actually differs to avoid infinite loops)
+  if (formData.startTime !== initialStartTime && initialStartTime) {
+    setFormData({ startTime: initialStartTime, endTime: initialEndTime });
+  }
 
   const calculateTotal = () => {
     if (!formData.startTime || !formData.endTime) return 0;
@@ -63,20 +78,30 @@ function BookingForm({ workspace }: { workspace: Workspace }) {
       <h3 className="text-lg font-semibold mb-4">Book This Workspace</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Start Time</label>
+          <label className="block text-sm font-medium mb-2" htmlFor="startTime">
+            Start Time
+          </label>
           <Input
+            id="startTime"
             type="datetime-local"
             value={formData.startTime}
-            onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, startTime: e.target.value }))
+            }
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-2">End Time</label>
+          <label className="block text-sm font-medium mb-2" htmlFor="endTime">
+            End Time
+          </label>
           <Input
+            id="endTime"
             type="datetime-local"
             value={formData.endTime}
-            onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, endTime: e.target.value }))
+            }
             required
           />
         </div>
@@ -91,7 +116,11 @@ function BookingForm({ workspace }: { workspace: Workspace }) {
           className="w-full"
           disabled={isBooking || !workspace.availability}
         >
-          {isBooking ? "Booking..." : workspace.availability ? "Confirm Booking" : "Unavailable"}
+          {isBooking
+            ? "Booking..."
+            : workspace.availability
+            ? "Confirm Booking"
+            : "Unavailable"}
         </Button>
       </form>
     </div>
@@ -102,11 +131,22 @@ export default function WorkspaceDetailPage() {
   const params = useParams();
   const workspaceId = params.id as string;
 
+  // Track the pre-filled times from a calendar slot click
+  const [prefillStart, setPrefillStart] = useState("");
+  const [prefillEnd, setPrefillEnd] = useState("");
+
   const { data, isLoading, isError } = useQuery<WorkspaceResponse>({
     queryKey: ["workspace", workspaceId],
     queryFn: () => api.getWorkspace(workspaceId),
     enabled: !!workspaceId,
   });
+
+  const handleSlotSelect = (selection: SlotSelection) => {
+    setPrefillStart(selection.startTime);
+    setPrefillEnd(selection.endTime);
+    // Scroll to the booking form on mobile
+    document.getElementById("booking-form")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   if (isLoading) {
     return (
@@ -183,7 +223,9 @@ export default function WorkspaceDetailPage() {
               </div>
               <div className="flex items-center">
                 <MapPin className="h-5 w-5 mr-2 text-gray-500" />
-                <span className="text-sm capitalize">{workspace.type.replace("-", " ")}</span>
+                <span className="text-sm capitalize">
+                  {workspace.type.replace("-", " ")}
+                </span>
               </div>
             </div>
 
@@ -210,12 +252,32 @@ export default function WorkspaceDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Availability Calendar */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <ErrorBoundary
+              section="WorkspaceCalendar"
+              message="Failed to load the availability calendar."
+            >
+              <WorkspaceCalendar
+                workspaceId={workspaceId}
+                onSlotSelect={handleSlotSelect}
+              />
+            </ErrorBoundary>
+          </div>
         </div>
 
         {/* Booking Form */}
-        <div className="lg:col-span-1">
-          <ErrorBoundary section="WorkspaceCalendar" message="Failed to load the booking scheduler.">
-            <BookingForm workspace={workspace} />
+        <div className="lg:col-span-1" id="booking-form">
+          <ErrorBoundary
+            section="BookingForm"
+            message="Failed to load the booking form."
+          >
+            <BookingForm
+              workspace={workspace}
+              initialStartTime={prefillStart}
+              initialEndTime={prefillEnd}
+            />
           </ErrorBoundary>
         </div>
       </div>

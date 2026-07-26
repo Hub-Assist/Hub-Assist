@@ -173,6 +173,9 @@ export const api = {
   getWorkspace: (workspaceId: string) =>
     get<{ workspace: import('@/types/workspace').Workspace }>(`/workspaces/${workspaceId}`),
 
+  getWorkspaceAvailability: (workspaceId: string, date: string) =>
+    get<import('@/types/workspace').AvailabilitySlot[]>(`/workspaces/${workspaceId}/availability`, { params: { date } }),
+
   createBooking: (data: { workspaceId: string; startTime: string; endTime: string }) =>
     post<{ booking: Booking; message: string }>('/bookings', data),
 
