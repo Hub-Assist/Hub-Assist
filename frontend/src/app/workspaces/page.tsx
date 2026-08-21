@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import type { WorkspaceFilters, WorkspaceType } from "@/types/workspace";
-import { Button } from "@/components/ui/Button";
 import { WorkspaceFiltersComponent } from "@/components/workspaces/WorkspaceFilters";
 import { HighlightText } from "@/components/workspaces/HighlightText";
 import { useFiltersWithUrl, type FilterSchema } from "@/hooks/useFiltersWithUrl";
@@ -142,9 +142,10 @@ function WorkspacesContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {workspaces.length > 0 ? (
           workspaces.map((workspace) => (
-            <div
+            <Link
               key={workspace.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+              href={`/workspaces/${workspace.id}`}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow block"
             >
               <div className="h-48 bg-gray-200 flex items-center justify-center">
                 {workspace.images?.[0] ? (
@@ -183,11 +184,23 @@ function WorkspacesContent() {
                     <span className="text-red-600">Unavailable</span>
                   )}
                 </p>
-                <Button className="w-full" disabled={!workspace.availability}>
+                {/*
+                  Rendered as a span, not a Button — the whole card is already
+                  a Link to the workspace detail page, and nesting an
+                  interactive <button> inside an <a> is invalid HTML.
+                */}
+                <span
+                  aria-hidden="true"
+                  className={`inline-flex w-full items-center justify-center rounded-full h-10 px-5 text-sm font-medium transition-colors ${
+                    workspace.availability
+                      ? "bg-[#1A1A1A] text-[#F3EBE2]"
+                      : "bg-[#1A1A1A] text-[#F3EBE2] opacity-50"
+                  }`}
+                >
                   {workspace.availability ? "Book Now" : "Unavailable"}
-                </Button>
+                </span>
               </div>
-            </div>
+            </Link>
           ))
         ) : (
           <div className="col-span-full text-center py-12">
