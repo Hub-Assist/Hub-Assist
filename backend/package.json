@@ -22,6 +22,7 @@
     "migration:lint": "node scripts/lint-migrations.js"
   },
   "dependencies": {
+    "@nestjs-modules/ioredis": "^2.2.2",
     "@nestjs-modules/mailer": "^2.3.6",
     "@nestjs/cache-manager": "^3.1.2",
     "@nestjs/common": "^10.0.0",
@@ -56,16 +57,17 @@
     "nest-winston": "^1.10.2",
     "nestjs-pino": "^4.1.0",
     "nodemailer": "^8.0.10",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "pg": "^8.11.0",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^13.0.0",
-    "passport-jwt": "^4.0.1",
-    "pg": "^8.11.0",
     "reflect-metadata": "^0.1.13",
+    "rrule": "2.8.1",
     "rxjs": "^7.8.0",
     "socket.io": "^4.8.3",
     "typeorm": "^0.3.17",
-    "rrule": "2.8.1",
     "uuid": "^10.0.0",
     "winston": "^3.19.0"
   },
