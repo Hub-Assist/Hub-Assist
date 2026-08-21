@@ -82,14 +82,6 @@ function formatWeekRange(weekStart: Date): string {
 }
 
 /**
- * Converts a slot's UTC ISO timestamp to the local YYYY-MM-DD date string so
- * we can group slots by the day they appear in the user's time zone.
- */
-function slotLocalDate(isoString: string): string {
-  return toLocalDateString(new Date(isoString));
-}
-
-/**
  * Converts a slot's UTC ISO timestamp to the local hour (0–23) so we can
  * place the slot in the correct row of the grid.
  */
