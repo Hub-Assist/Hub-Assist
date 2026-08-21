@@ -27,6 +27,9 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './users.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { UserSearchService } from './services/user-search.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -116,8 +119,8 @@ export class UsersController {
   @Post('change-password')
   @ApiOperation({ summary: 'Change own password' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  changePassword(@Req() req: any, @Body() body: { currentPassword: string; newPassword: string }) {
-    return this.usersService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
+  changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+    return this.usersService.changePassword(req.user.sub, dto.currentPassword, dto.newPassword);
   }
 
   @Get(':id')
@@ -148,9 +151,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user role (admin only) — immediately revokes the user\'s current access token' })
   @ApiParam({ name: 'id', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User role updated successfully' })
-  async updateRole(@Param('id') id: string, @Body('role') role: UserRole, @Req() req: any) {
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto, @Req() req: any) {
     req.auditBefore = await this.usersService.findById(id);
-    const result = await this.usersService.update(id, { role });
+    const result = await this.usersService.update(id, { role: dto.role });
     await this.cacheManager.del(this.userCacheKey(id));
 
     // Blacklist the admin's current access token on role-change events so that
