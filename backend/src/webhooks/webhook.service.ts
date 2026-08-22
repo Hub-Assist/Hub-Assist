@@ -70,7 +70,11 @@ export class WebhookService {
         .createQueryBuilder(WebhookDelivery, 'delivery')
         .setLock('pessimistic_write')
         .setOnLocked('skip_locked')
-        .leftJoinAndSelect('delivery.subscription', 'subscription')
+        // subscriptionId is NOT NULL, so this is always an inner join in
+        // practice — using innerJoinAndSelect (rather than leftJoinAndSelect)
+        // matters because Postgres rejects FOR UPDATE combined with a LEFT
+        // JOIN (locking semantics are undefined on the nullable side).
+        .innerJoinAndSelect('delivery.subscription', 'subscription')
         .where('delivery.status IN (:...statuses)', {
           statuses: [WebhookDeliveryStatus.PENDING, WebhookDeliveryStatus.FAILED],
         })

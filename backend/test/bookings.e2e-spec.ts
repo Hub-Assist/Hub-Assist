@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { getConnection, Connection } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { User } from '../src/users/user.entity';
 import { UserRole } from '../src/users/user.entity';
 import { Workspace } from '../src/workspaces/workspace.entity';
@@ -11,6 +11,7 @@ import { Booking } from '../src/bookings/booking.entity';
 import { StellarService } from '../src/stellar/stellar.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock StellarService to avoid real blockchain calls
 const mockStellarService = {
@@ -19,7 +20,7 @@ const mockStellarService = {
 
 describe('Bookings (e2e)', () => {
   let app: INestApplication;
-  let connection: Connection;
+  let connection: DataSource;
   let authTokenAdmin: string;
   let authTokenMember: string;
   let testWorkspaceId: string;
@@ -43,14 +44,17 @@ describe('Bookings (e2e)', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
-    const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
-    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    // LoggingInterceptor is already registered globally via APP_INTERCEPTOR in
+    // AppModule (with its LoggerService dependency injected) — only
+    // TransformInterceptor needs to be added manually here.
+    app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
 
-    connection = getConnection();
+    connection = module.get(DataSource);
 
     // Create test data
     const userRepo = connection.getRepository(User);
@@ -98,23 +102,26 @@ describe('Bookings (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Drop the database while the DataSource is still connected — app.close()
+    // tears down the DataSource, so it must run first.
+    await connection.dropDatabase();
     await app.close();
-    const conn = getConnection();
-    await conn.dropDatabase();
-    await conn.close();
   });
 
   beforeEach(async () => {
     // Clean bookings table before each test
     const bookingRepo = connection.getRepository(Booking);
-    await bookingRepo.delete({});
+    await bookingRepo.clear();
   });
 
   // Helper function to create a booking via HTTP
+  // Every request needs a unique X-Idempotency-Key — the IdempotencyMiddleware
+  // requires it on POST /bookings and would otherwise reject with 422.
   const createBooking = (token: string, data: any) => {
     return request(app.getHttpServer())
       .post('/api/v1/bookings')
       .set('Authorization', `Bearer ${token}`)
+      .set('X-Idempotency-Key', uuidv4())
       .send(data);
   };
 
@@ -131,15 +138,17 @@ describe('Bookings (e2e)', () => {
       }).expect(201);
 
       expect(response.body.success).toBe(true);
+      // totalAmount is computed server-side by the dynamic PricingEngine from
+      // the workspace rate and duration — it ignores whatever the client sends.
       expect(response.body.data).toMatchObject({
         workspaceId: testWorkspaceId,
         startTime,
         endTime,
-        totalAmount: 100,
         userId: expect.any(String),
         status: 'Pending',
         id: expect.any(String),
       });
+      expect(response.body.data.totalAmount).toBeGreaterThan(0);
     });
 
     it('should return 401 for unauthenticated user', async () => {
@@ -148,6 +157,7 @@ describe('Bookings (e2e)', () => {
 
       await request(app.getHttpServer())
         .post('/api/v1/bookings')
+        .set('X-Idempotency-Key', uuidv4())
         .send({
           workspaceId: testWorkspaceId,
           startTime,
@@ -170,12 +180,26 @@ describe('Bookings (e2e)', () => {
     });
 
     it('should return 409 for overlapping booking', async () => {
+      // testWorkspaceId has capacity 10, so overlapping bookings alone don't
+      // conflict — conflict detection only trips when capacity is exceeded.
+      // Use a dedicated capacity-1 workspace so a second overlapping booking
+      // is guaranteed to conflict.
+      const workspaceRepo = connection.getRepository(Workspace);
+      const exclusiveWorkspace = workspaceRepo.create({
+        name: 'Exclusive Capacity Workspace',
+        type: WorkspaceType.PRIVATE_OFFICE,
+        capacity: 1,
+        pricePerHour: 50,
+        availability: WorkspaceAvailability.AVAILABLE,
+      });
+      await workspaceRepo.save(exclusiveWorkspace);
+
       const startTime1 = new Date(Date.now() + 86400000 * 2).toISOString();
       const endTime1 = new Date(Date.now() + 86400000 * 3).toISOString();
 
       // Create a confirmed booking that overlaps
       const createRes = await createBooking(authTokenMember, {
-        workspaceId: testWorkspaceId,
+        workspaceId: exclusiveWorkspace.id,
         startTime: startTime1,
         endTime: endTime1,
         totalAmount: 100,
@@ -195,7 +219,7 @@ describe('Bookings (e2e)', () => {
       const endTime2 = new Date(Date.now() + 86400000 * 3).toISOString();
 
       await createBooking(authTokenMember, {
-        workspaceId: testWorkspaceId,
+        workspaceId: exclusiveWorkspace.id,
         startTime: startTime2,
         endTime: endTime2,
         totalAmount: 150,

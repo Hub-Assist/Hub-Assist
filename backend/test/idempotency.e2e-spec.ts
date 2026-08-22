@@ -14,10 +14,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { getConnection } from 'typeorm';
+import { DataSource } from 'typeorm';
 import { User, UserRole } from '../src/users/user.entity';
 import { Workspace, WorkspaceType, WorkspaceAvailability } from '../src/workspaces/workspace.entity';
 import { Booking } from '../src/bookings/booking.entity';
+import { ContactMessage } from '../src/contact/contact-message.entity';
 import { StellarService } from '../src/stellar/stellar.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -29,6 +30,7 @@ const mockStellarService = {
 
 describe('Idempotency Middleware (e2e)', () => {
   let app: INestApplication;
+  let dataSource: DataSource;
   let memberToken: string;
   let memberUserId: string;
   let otherMemberToken: string;
@@ -50,16 +52,19 @@ describe('Idempotency Middleware (e2e)', () => {
       .compile();
 
     app = module.createNestApplication();
+    app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
-    const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
-    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    // LoggingInterceptor is already registered globally via APP_INTERCEPTOR in
+    // AppModule (with its LoggerService dependency injected) — only
+    // TransformInterceptor needs to be added manually here.
+    app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
 
-    const connection = getConnection();
-    const userRepo = connection.getRepository(User);
-    const workspaceRepo = connection.getRepository(Workspace);
+    dataSource = module.get(DataSource);
+    const userRepo = dataSource.getRepository(User);
+    const workspaceRepo = dataSource.getRepository(Workspace);
 
     const member = userRepo.create({
       email: 'idempotency-member@test.com',
@@ -92,15 +97,15 @@ describe('Idempotency Middleware (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Drop the database while the DataSource is still connected — app.close()
+    // tears down the DataSource, so it must run first.
+    await dataSource.dropDatabase();
     await app.close();
-    const conn = getConnection();
-    await conn.dropDatabase();
-    await conn.close();
   });
 
   afterEach(async () => {
-    const conn = getConnection();
-    await conn.getRepository(Booking).delete({});
+    await dataSource.getRepository(Booking).clear();
+    await dataSource.getRepository(ContactMessage).clear();
   });
 
   // ── Helper ───────────────────────────────────────────────────────────────
@@ -155,8 +160,7 @@ describe('Idempotency Middleware (e2e)', () => {
     expect(second.body.data.id).toBe(firstBookingId);
 
     // Verify only one booking exists in the database
-    const conn = getConnection();
-    const bookings = await conn.getRepository(Booking).find({ where: { userId: memberUserId } });
+    const bookings = await dataSource.getRepository(Booking).find({ where: { userId: memberUserId } });
     expect(bookings).toHaveLength(1);
     expect(bookings[0].id).toBe(firstBookingId);
   });
@@ -174,8 +178,7 @@ describe('Idempotency Middleware (e2e)', () => {
 
     expect(resA.body.data.id).not.toBe(resB.body.data.id);
 
-    const conn = getConnection();
-    const bookings = await conn.getRepository(Booking).find({ where: { userId: memberUserId } });
+    const bookings = await dataSource.getRepository(Booking).find({ where: { userId: memberUserId } });
     expect(bookings).toHaveLength(2);
   });
 
@@ -195,5 +198,74 @@ describe('Idempotency Middleware (e2e)', () => {
     const second = await postBooking(otherMemberToken, sharedKey, { workspaceId, startTime, endTime }).expect(201);
 
     expect(second.body.data.id).not.toBe(firstBookingId);
+  });
+
+  // ── Idempotency-key replay on a second mutating endpoint (POST /contact) ──
+  //
+  // POST /contact is the only other real endpoint the IdempotencyMiddleware
+  // is wired to (see app.module.ts) that a plain HTTP request can actually
+  // reach — the 'bookings' and 'attendance/clock-in|out' RouteInfo entries
+  // are exact-path/base-route matches, but only 'bookings' and 'contact' have
+  // handlers registered at that exact path. (POST /contact itself currently
+  // requires a Bearer token too, since it isn't marked @Public() — a separate,
+  // pre-existing quirk this suite works around rather than changes.)
+
+  describe('Idempotency-key replay — POST /contact', () => {
+    function postContact(token: string, idempotencyKey: string, overrides?: Partial<Record<string, string>>) {
+      return request(app.getHttpServer())
+        .post('/api/v1/contact')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Idempotency-Key', idempotencyKey)
+        .send({
+          fullName: 'Idempotency Tester',
+          email: 'contact-idempotency@test.com',
+          subject: 'Question about billing',
+          message: 'This is a test message body, long enough to pass validation.',
+          ...overrides,
+        });
+    }
+
+    it('returns 422 when X-Idempotency-Key header is absent', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/contact')
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({
+          fullName: 'Idempotency Tester',
+          email: 'contact-idempotency@test.com',
+          subject: 'Question about billing',
+          message: 'This is a test message body, long enough to pass validation.',
+        })
+        .expect(422);
+    });
+
+    it('creates a contact message on the first request (201)', async () => {
+      const res = await postContact(memberToken, uuidv4()).expect(201);
+      expect(res.body.data).toMatchObject({ fullName: 'Idempotency Tester', subject: 'Question about billing' });
+    });
+
+    it('returns the same response on a duplicate request without creating a second message', async () => {
+      const key = uuidv4();
+
+      const first = await postContact(memberToken, key).expect(201);
+      const firstMessageId = first.body.data.id;
+
+      const second = await postContact(memberToken, key);
+      expect(second.status).toBe(201);
+      expect(second.body.data.id).toBe(firstMessageId);
+
+      const messages = await dataSource.getRepository(ContactMessage).find();
+      expect(messages).toHaveLength(1);
+      expect(messages[0].id).toBe(firstMessageId);
+    });
+
+    it('creates a new message when a different idempotency key is used', async () => {
+      const resA = await postContact(memberToken, uuidv4(), { subject: 'First subject line' }).expect(201);
+      const resB = await postContact(memberToken, uuidv4(), { subject: 'Second subject line' }).expect(201);
+
+      expect(resA.body.data.id).not.toBe(resB.body.data.id);
+
+      const messages = await dataSource.getRepository(ContactMessage).find();
+      expect(messages).toHaveLength(2);
+    });
   });
 });

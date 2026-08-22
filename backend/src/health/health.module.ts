@@ -11,8 +11,8 @@ import { CloudinaryHealthIndicator } from './indicators/cloudinary.health-indica
   imports: [
     TerminusModule.forRoot({
       // Terminus will return HTTP 503 on failed checks by default.
-      // errorLogStyle: 'minimal' keeps logs clean in production.
-      errorLogStyle: 'minimal',
+      // errorLogStyle: 'json' keeps logs clean in production.
+      errorLogStyle: 'json',
     }),
     ConfigModule,
   ],

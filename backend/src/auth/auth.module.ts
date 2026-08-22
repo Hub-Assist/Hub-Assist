@@ -17,6 +17,7 @@ import { WebAuthnCredential } from './webauthn-credential.entity';
 import { OAuthClient } from './oauth-client.entity';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { SessionBroadcastService } from './session-broadcast.service';
+import { CsrfService } from './csrf.service';
 import { ForgotPasswordProvider } from '../users/providers/forgot-password.provider';
 import { ResetPasswordProvider } from '../users/providers/reset-password.provider';
 import { User } from '../users/user.entity';
@@ -51,12 +52,13 @@ import { OAuthService } from './oauth.service';
     EmailService,
     RefreshTokenRepository,
     SessionBroadcastService,
+    CsrfService,
     ForgotPasswordProvider,
     ResetPasswordProvider,
     OtpRateLimitService,
     OAuthService,
   ],
   controllers: [AuthController, BiometricController, TotpController],
-  exports: [TotpService, OAuthService],
+  exports: [TotpService, OAuthService, CsrfService],
 })
 export class AuthModule {}

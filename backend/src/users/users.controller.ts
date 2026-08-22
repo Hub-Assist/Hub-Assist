@@ -26,6 +26,8 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UserSearchService } from './services/user-search.service';
+import { UserSearchDto } from './dto/user-search.dto';
 import { UpdateUserDto } from './users.dto';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -111,8 +113,6 @@ export class UsersController {
     return this.userSearchService.search(dto);
   }
 
-  @Get()
-
   @Post('change-password')
   @ApiOperation({ summary: 'Change own password' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
@@ -166,7 +166,8 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete user (soft delete)' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete user (soft delete, admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   async delete(@Param('id') id: string) {
