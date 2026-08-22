@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
+import { calculateNextRetryAt, isDeadLetter } from '../utils/retry-backoff';
 import { OutboxEvent, OutboxEventStatus, OutboxEventType } from './outbox-event.entity';
 import { StellarService } from '../stellar/stellar.service';
 
-const MAX_OUTBOX_RETRIES = 5;
+const MAX_OUTBOX_ATTEMPTS = 5;
 
 @Injectable()
 export class OutboxService {
@@ -26,6 +27,7 @@ export class OutboxService {
         .setLock('pessimistic_write')
         .setOnLocked('skip_locked')
         .where('event.status = :status', { status: OutboxEventStatus.PENDING })
+        .andWhere('(event.nextRetryAt IS NULL OR event.nextRetryAt <= :now)', { now: new Date() })
         .orderBy('event.createdAt', 'ASC')
         .take(limit)
         .getMany(),
@@ -43,13 +45,21 @@ export class OutboxService {
       event.processedAt = new Date();
       await this.repo.save(event);
     } catch (error) {
-      const retryCount = event.retryCount + 1;
+      const attempts = event.retryCount + 1;
+      const isDead = isDeadLetter(attempts, MAX_OUTBOX_ATTEMPTS);
+
       await this.repo.update(event.id, {
-        retryCount,
-        status: retryCount >= MAX_OUTBOX_RETRIES ? OutboxEventStatus.FAILED : OutboxEventStatus.PENDING,
-        processedAt: retryCount >= MAX_OUTBOX_RETRIES ? new Date() : null,
+        retryCount: attempts,
+        status: isDead ? OutboxEventStatus.FAILED : OutboxEventStatus.PENDING,
+        nextRetryAt: isDead ? event.nextRetryAt : calculateNextRetryAt(attempts),
+        processedAt: isDead ? new Date() : null,
       });
-      this.logger.warn(`Outbox event ${event.id} failed: ${(error as Error).message}`);
+
+      if (isDead) {
+        this.logger.error(`Outbox event ${event.id} dead after ${attempts} attempts: ${(error as Error).message}`);
+      } else {
+        this.logger.warn(`Outbox event ${event.id} failed on attempt ${attempts}: ${(error as Error).message}`);
+      }
     }
   }
 }
