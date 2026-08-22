@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 import type { Workspace, WorkspaceFilters } from "@/types/workspace";
 
 export interface UseWorkspacesOptions extends WorkspaceFilters {
@@ -31,7 +32,7 @@ export function useWorkspaces(options: UseWorkspacesOptions = {}) {
   // Normalise: treat 0- or 1-char searches the same as no search
   const effectiveSearch = search && search.trim().length >= 2 ? search.trim() : undefined;
 
-  const queryKey = ["workspaces", { ...filters, search: effectiveSearch }] as const;
+  const queryKey = queryKeys.workspaces.list({ ...filters, search: effectiveSearch });
 
   return useQuery<WorkspacesResponse>({
     queryKey,

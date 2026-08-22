@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { decodeToken, hasRequiredRole, isTokenExpired } from "@/lib/auth/decodeToken";
 
-const protectedRoutes: Record<string, string | null> = {
+const publicRoutes = [
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-otp",
+  "/contact",
+  "/privacy-policy",
+  "/terms-of-service",
+];
+
+const protectedRoutes: Record<string, string | string[] | null> = {
   "/dashboard": null,
   "/profile": null,
   "/settings": null,
@@ -28,23 +41,17 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Check token expiry
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (Date.now() >= payload.exp * 1000) {
-        const loginUrl = new URL("/login", request.url);
-        loginUrl.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(loginUrl);
-      }
+    const payload = decodeToken(token);
 
-      const requiredRole = protectedRoutes[matchedRoute];
-      if (requiredRole && payload.role !== requiredRole) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
-      }
-    } catch {
+    if (!payload || isTokenExpired(token)) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
+    }
+
+    const requiredRole = protectedRoutes[matchedRoute];
+    if (!hasRequiredRole(payload, requiredRole)) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 

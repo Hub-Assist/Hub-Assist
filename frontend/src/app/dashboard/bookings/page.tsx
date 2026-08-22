@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api, type BookingStatus } from "@/lib/apiClient";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingCard } from "@/components/bookings/BookingCard";
 import { Button } from "@/components/ui/Button";
@@ -38,7 +39,7 @@ function BookingsContent() {
   const [{ tab }, setFilters] = useFiltersWithUrl(DEFAULT_BOOKINGS_FILTERS, BOOKINGS_FILTERS_SCHEMA);
 
   const { data: bookings = [], isLoading, isError } = useQuery({
-    queryKey: ["bookings", tab],
+    queryKey: queryKeys.bookings.list(tab),
     queryFn: () => api.getBookings(tab === "all" ? undefined : tab),
     enabled: !!token,
   });

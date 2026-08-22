@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
 import { mutationKeys } from "@/lib/react-query/keys/mutationKeys";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 
 export function useCreateBooking() {
   const queryClient = useQueryClient();
@@ -12,7 +13,7 @@ export function useCreateBooking() {
     mutationFn: (data: { workspaceId: string; startTime: string; endTime: string }) =>
       api.createBooking(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
     },
   });
 }

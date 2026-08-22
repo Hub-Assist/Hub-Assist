@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 import type { NewsletterPreferences } from "@/types/newsletter";
 
 export function useUpdateNewsletterPreferences(token: string) {
@@ -12,7 +13,7 @@ export function useUpdateNewsletterPreferences(token: string) {
     mutationFn: (preferences: Partial<NewsletterPreferences>) =>
       api.updateNewsletterPreferences(token, preferences),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["newsletter", "preferences", token] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.newsletter.preferences(token) });
     },
   });
 }
