@@ -33,6 +33,7 @@ import { WorkspaceType, WorkspaceAvailability } from './workspace.entity';
 import { Audit } from '../audit/audit.decorator';
 import { AuditInterceptor } from '../audit/audit.interceptor';
 import { CapacityCheckService } from '../bookings/capacity-check.service';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 const WORKSPACES_CACHE_KEY = 'workspaces';
 
@@ -111,7 +112,7 @@ export class WorkspacesController {
   @ApiOperation({ summary: 'Update workspace' })
   @ApiParam({ name: 'id', type: String, description: 'Workspace ID' })
   @ApiResponse({ status: 200, description: 'Workspace updated successfully' })
-  async update(@Param('id') id: string, @Body() dto: UpdateWorkspaceDto, @Req() req: any) {
+  async update(@Param('id') id: string, @Body() dto: UpdateWorkspaceDto, @Req() req: AuthenticatedRequest) {
     req.auditBefore = await this.service.findById(id);
     const result = await this.service.update(id, dto);
     await this.invalidateWorkspacesCache();

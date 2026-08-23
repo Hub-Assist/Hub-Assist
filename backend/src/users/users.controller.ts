@@ -36,6 +36,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { TokenBlacklistService } from '../auth/token-blacklist.service';
 import { Audit } from '../audit/audit.decorator';
 import { AuditInterceptor } from '../audit/audit.interceptor';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('users')
 @ApiBearerAuth('bearer')
@@ -116,7 +117,7 @@ export class UsersController {
   @Post('change-password')
   @ApiOperation({ summary: 'Change own password' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  changePassword(@Req() req: any, @Body() body: { currentPassword: string; newPassword: string }) {
+  changePassword(@Req() req: AuthenticatedRequest, @Body() body: { currentPassword: string; newPassword: string }) {
     return this.usersService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
   }
 
@@ -148,7 +149,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user role (admin only) — immediately revokes the user\'s current access token' })
   @ApiParam({ name: 'id', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User role updated successfully' })
-  async updateRole(@Param('id') id: string, @Body('role') role: UserRole, @Req() req: any) {
+  async updateRole(@Param('id') id: string, @Body('role') role: UserRole, @Req() req: AuthenticatedRequest) {
     req.auditBefore = await this.usersService.findById(id);
     const result = await this.usersService.update(id, { role });
     await this.cacheManager.del(this.userCacheKey(id));

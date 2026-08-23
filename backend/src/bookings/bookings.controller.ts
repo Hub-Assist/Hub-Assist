@@ -33,6 +33,7 @@ import {
 import { WorkspaceType } from '../workspaces/workspace.entity';
 import { Audit } from '../audit/audit.decorator';
 import { AuditInterceptor } from '../audit/audit.interceptor';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('bookings')
 @ApiBearerAuth('bearer')
@@ -119,7 +120,7 @@ The full pricing breakdown is stored in \`appliedRateSnapshot\` (JSONB) on the b
       },
     },
   })
-  create(@Request() req: any, @Body() dto: CreateBookingDto) {
+  create(@Request() req: AuthenticatedRequest, @Body() dto: CreateBookingDto) {
     return this.service.create(req.user.id, dto, req.user.role ?? 'member');
   }
 
@@ -127,7 +128,7 @@ The full pricing breakdown is stored in \`appliedRateSnapshot\` (JSONB) on the b
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get all bookings (user sees own, admin sees all)' })
   @ApiResponse({ status: 200, description: 'Bookings retrieved successfully' })
-  findAll(@Request() req: any) {
+  findAll(@Request() req: AuthenticatedRequest) {
     const isAdmin = req.user.role === 'admin';
     return this.service.findAll(isAdmin ? undefined : req.user.id, isAdmin);
   }
@@ -167,7 +168,7 @@ The full pricing breakdown is stored in \`appliedRateSnapshot\` (JSONB) on the b
   @ApiOperation({ summary: 'Confirm booking (admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'Booking ID' })
   @ApiResponse({ status: 200, description: 'Booking confirmed successfully' })
-  async confirm(@Param('id') id: string, @Request() req: any) {
+  async confirm(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     req.auditBefore = await this.service.findById(id);
     return this.service.confirm(id);
   }
@@ -191,7 +192,7 @@ The \`refundAmount\` is stored on the booking record.`,
     status: 200,
     description: 'Booking cancelled. Response includes refundAmount.',
   })
-  cancel(@Param('id') id: string, @Request() req: any) {
+  cancel(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
     return this.service.cancel(id, req.user.id);
   }
 
@@ -218,7 +219,7 @@ and stored according to the cancellation policy.`,
   })
   @ApiResponse({ status: 403, description: 'Not authorized to cancel this series' })
   @ApiResponse({ status: 404, description: 'Series not found' })
-  cancelSeries(@Param('seriesId') seriesId: string, @Request() req: any) {
+  cancelSeries(@Param('seriesId') seriesId: string, @Request() req: AuthenticatedRequest) {
     return this.service.cancelSeries(seriesId, req.user.id);
   }
 

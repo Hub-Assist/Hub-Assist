@@ -19,6 +19,7 @@ import {
   TotpSetupResponseDto,
   TotpStatusResponseDto,
 } from './dto/totp.dto';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('auth/totp')
 @ApiBearerAuth('bearer')
@@ -42,7 +43,7 @@ export class TotpController {
     description: 'TOTP setup credentials generated successfully',
     type: TotpSetupResponseDto,
   })
-  async setupTotp(@Request() req: any): Promise<TotpSetupResponseDto> {
+  async setupTotp(@Request() req: AuthenticatedRequest): Promise<TotpSetupResponseDto> {
     const user = await this.usersService.findById(req.user.sub);
     if (!user) {
       throw new BadRequestException('User not found');
@@ -80,7 +81,7 @@ export class TotpController {
     },
   })
   async enableTotp(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: EnableTotpDto,
   ): Promise<{ message: string; backupCodes: string[] }> {
     const user = await this.usersService.findById(req.user.sub);
@@ -135,7 +136,7 @@ export class TotpController {
     },
   })
   async verifyTotp(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: VerifyTotpDto,
   ): Promise<{ message: string; valid: boolean }> {
     const user = await this.usersService.findById(req.user.sub);
@@ -174,7 +175,7 @@ export class TotpController {
     },
   })
   async disableTotp(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Body() dto: DisableTotpDto,
   ): Promise<{ message: string }> {
     const user = await this.usersService.findById(req.user.sub);
@@ -214,7 +215,7 @@ export class TotpController {
     description: 'TOTP status retrieved successfully',
     type: TotpStatusResponseDto,
   })
-  async getTotpStatus(@Request() req: any): Promise<TotpStatusResponseDto> {
+  async getTotpStatus(@Request() req: AuthenticatedRequest): Promise<TotpStatusResponseDto> {
     const user = await this.usersService.findById(req.user.sub);
     if (!user) {
       throw new BadRequestException('User not found');

@@ -15,6 +15,7 @@ import { UserRole } from '../users/user.entity';
 import { AttendanceService } from './attendance.service';
 import { ClockInDto, ClockOutDto, AttendanceSummaryQueryDto } from './attendance.dto';
 import { CursorPaginationQueryDto } from '../common/pagination/dto/cursor-pagination-query.dto';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('attendance')
 @ApiBearerAuth('bearer')
@@ -38,7 +39,7 @@ export class AttendanceController {
       },
     },
   })
-  async clockIn(@Request() req: any, @Body() dto: ClockInDto) {
+  async clockIn(@Request() req: AuthenticatedRequest, @Body() dto: ClockInDto) {
     return this.attendanceService.clockIn(req.user.id, dto);
   }
 
@@ -57,7 +58,7 @@ export class AttendanceController {
       },
     },
   })
-  async clockOut(@Request() req: any, @Body() dto: ClockOutDto) {
+  async clockOut(@Request() req: AuthenticatedRequest, @Body() dto: ClockOutDto) {
     return this.attendanceService.clockOut(req.user.id, dto);
   }
 
@@ -74,7 +75,7 @@ export class AttendanceController {
   @ApiQuery({ name: 'limit', type: Number, required: false, example: 20, description: 'Number of records per page (1–100, default 20).' })
   @ApiResponse({ status: 200, description: 'Attendance history retrieved successfully' })
   async getMyAttendance(
-    @Request() req: any,
+    @Request() req: AuthenticatedRequest,
     @Query() query: CursorPaginationQueryDto,
   ) {
     return this.attendanceService.getMyAttendance(req.user.sub ?? req.user.id, query);
