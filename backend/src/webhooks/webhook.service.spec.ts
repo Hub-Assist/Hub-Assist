@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { WebhookService } from './webhook.service';
 import { WebhookDeliveryStatus } from './webhook-delivery.entity';
+import { calculateNextRetryAt } from '../utils/retry-backoff';
 
 jest.mock('axios');
 
@@ -34,7 +35,7 @@ describe('WebhookService', () => {
     const queryBuilder = {
       setLock: jest.fn().mockReturnThis(),
       setOnLocked: jest.fn().mockReturnThis(),
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
@@ -52,9 +53,9 @@ describe('WebhookService', () => {
   it('calculates exponential backoff intervals', () => {
     const now = new Date('2026-01-01T00:00:00.000Z');
 
-    expect(service.calculateNextRetryAt(1, now).getTime() - now.getTime()).toBe(1000);
-    expect(service.calculateNextRetryAt(2, now).getTime() - now.getTime()).toBe(2000);
-    expect(service.calculateNextRetryAt(8, now).getTime() - now.getTime()).toBe(128000);
+    expect(calculateNextRetryAt(1, now).getTime() - now.getTime()).toBe(1000);
+    expect(calculateNextRetryAt(2, now).getTime() - now.getTime()).toBe(2000);
+    expect(calculateNextRetryAt(8, now).getTime() - now.getTime()).toBe(128000);
   });
 
   it('generates and verifies HMAC signatures', () => {
@@ -107,6 +108,32 @@ describe('WebhookService', () => {
       expect.objectContaining({
         attempts: 1,
         status: WebhookDeliveryStatus.FAILED,
+        responseCode: 500,
+      }),
+    );
+  });
+
+  it('marks delivery as dead-letter when max attempts exceeded', async () => {
+    const maxAttempts = 8;
+    (axios.post as jest.Mock).mockResolvedValue({ status: 500 });
+    mockReadyDeliveries([
+      {
+        id: 'delivery-1',
+        attempts: maxAttempts - 1,
+        nextRetryAt: new Date(),
+        payload: { id: 'booking-1' },
+        eventType: 'booking.confirmed',
+        subscription: { url: 'https://example.com', encryptedSecret: (service as any).encryptSecret('secret') },
+      },
+    ]);
+
+    await service.processReady();
+
+    expect(deliveryRepo.update).toHaveBeenCalledWith(
+      'delivery-1',
+      expect.objectContaining({
+        attempts: maxAttempts,
+        status: WebhookDeliveryStatus.DEAD,
         responseCode: 500,
       }),
     );

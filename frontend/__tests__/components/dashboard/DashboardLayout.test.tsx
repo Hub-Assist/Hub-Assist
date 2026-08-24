@@ -61,6 +61,7 @@ jest.mock("lucide-react", () => {
     LogOut: icon("LogOut"),
     Building2: icon("Building2"),
     User: icon("User"),
+    ShieldCheck: icon("ShieldCheck"),
   };
 });
 

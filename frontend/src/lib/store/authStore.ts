@@ -75,7 +75,10 @@ export const useAuthStore = create<AuthStore>()(
             if (typeof document !== 'undefined') {
               document.cookie = `token=${accessToken}; path=/; SameSite=Lax`;
             }
-            set({ isAuthenticated: true });
+            // `token` is only persisted transitively via `accessToken` (see `partialize`
+            // below) — restore it here too, since several pages still read the
+            // deprecated `token` field directly to gate their initial data fetch.
+            set({ isAuthenticated: true, token: accessToken });
           } else {
             if (typeof document !== 'undefined') {
               document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';

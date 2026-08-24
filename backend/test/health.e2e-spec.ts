@@ -12,10 +12,12 @@ import { SmtpHealthIndicator } from '../src/health/indicators/smtp.health-indica
 import { CloudinaryHealthIndicator } from '../src/health/indicators/cloudinary.health-indicator';
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
+import { TokenBlacklistService } from '../src/auth/token-blacklist.service';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
-import { LoggingInterceptor } from '../src/common/interceptors/logging.interceptor';
 
-const JWT_SECRET = 'hubassist-secret';
+// JwtStrategy verifies against process.env.JWT_SECRET (falling back to
+// 'hubassist-secret') — this must match so tokens signed here validate.
+const JWT_SECRET = process.env.JWT_SECRET || 'hubassist-secret';
 
 // ---------------------------------------------------------------------------
 // Shared mock factories
@@ -81,6 +83,7 @@ describe('Health (e2e)', () => {
       controllers: [HealthController],
       providers: [
         JwtStrategy,
+        { provide: TokenBlacklistService, useValue: { isBlacklisted: jest.fn().mockResolvedValue(false) } },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: TypeOrmHealthIndicator, useValue: makeDbIndicator(dbHealthy) },
         { provide: RedisHealthIndicator, useValue: makeRedisIndicator(redisHealthy) },
@@ -94,7 +97,10 @@ describe('Health (e2e)', () => {
     nestApp.setGlobalPrefix('api');
     nestApp.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     nestApp.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    nestApp.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    // This module doesn't import AppModule, so LoggingInterceptor's LoggerService
+    // dependency isn't available here — only TransformInterceptor is needed for
+    // the response-shape assertions below.
+    nestApp.useGlobalInterceptors(new TransformInterceptor());
     await nestApp.init();
 
     jwtService = module.get(JwtService);
@@ -118,9 +124,9 @@ describe('Health (e2e)', () => {
         .get('/api/v1/health/live')
         .expect(200)
         .expect((res) => {
-          expect(res.body.status).toBe('ok');
-          expect(typeof res.body.uptime).toBe('number');
-          expect(res.body.memory).toBeDefined();
+          expect(res.body.data.status).toBe('ok');
+          expect(typeof res.body.data.uptime).toBe('number');
+          expect(res.body.data.memory).toBeDefined();
         });
     });
 
@@ -140,7 +146,7 @@ describe('Health (e2e)', () => {
         .get('/api/v1/health/ready')
         .expect(200)
         .expect((res) => {
-          expect(res.body.status).toBe('ok');
+          expect(res.body.data.status).toBe('ok');
         });
     });
 
@@ -198,8 +204,8 @@ describe('Health (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken()}`)
         .expect(200)
         .expect((res) => {
-          expect(res.body.status).toBe('ok');
-          expect(res.body.details?.database).toBeDefined();
+          expect(res.body.data.status).toBe('ok');
+          expect(res.body.data.details?.database).toBeDefined();
         });
     });
 

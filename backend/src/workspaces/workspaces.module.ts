@@ -10,10 +10,11 @@ import { AmenitiesController } from './amenities.controller';
 import { OccupancyStreamService } from './occupancy-stream.service';
 import { Booking } from '../bookings/booking.entity';
 import { EmailModule } from '../email/email.module';
+import { CapacityCheckService } from '../bookings/capacity-check.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Workspace, MaintenanceWindow, Booking, Amenity]), EmailModule],
-  providers: [WorkspacesService, OccupancyStreamService, AmenitiesService],
+  providers: [WorkspacesService, OccupancyStreamService, AmenitiesService, CapacityCheckService],
   controllers: [WorkspacesController, AmenitiesController],
   exports: [WorkspacesService, OccupancyStreamService],
 })

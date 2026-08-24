@@ -146,9 +146,9 @@ export class AnalyticsService {
             date: yesterday,
             workspaceId: workspace.id,
             workspaceType: workspace.type,
-            bookedHours: bookedHours as any,
-            availableHours: availableHours as any,
-            occupancyRate: Math.min(100, occupancyRate) as any,
+            bookedHours: Number(bookedHours),
+            availableHours: Number(availableHours),
+            occupancyRate: Number(Math.min(100, occupancyRate)),
           },
           ['date', 'workspaceId'],
         );

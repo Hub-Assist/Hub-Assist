@@ -22,6 +22,7 @@ import {
 import { ContactService } from './contact.service';
 import { SpamDetectionService } from './spam-detection.service';
 import { SubmitContactDto } from './dto/submit-contact.dto';
+import { AddSpamKeywordDto } from './dto/add-spam-keyword.dto';
 import { PaginationQueryDto } from '../common/pagination/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -95,11 +96,8 @@ Rate limit: 3 submissions per IP per 10 minutes (enforced by the spam detector's
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Add a spam keyword (admin)' })
   @ApiResponse({ status: 201, description: 'Spam keyword added' })
-  addSpamKeyword(
-    @Body('keyword') keyword: string,
-    @Body('weight') weight?: number,
-  ) {
-    return this.spamDetection.addKeyword(keyword, weight);
+  addSpamKeyword(@Body() dto: AddSpamKeywordDto) {
+    return this.spamDetection.addKeyword(dto.keyword, dto.weight);
   }
 
   @Delete('admin/spam-keywords/:id')

@@ -41,8 +41,7 @@ export class PasswordPolicyService {
   private readonly hibpEnabled: boolean;
 
   constructor(private readonly configService: ConfigService) {
-    this.hibpEnabled =
-      this.configService.get<string>('HIBP_CHECK_ENABLED', 'false').toLowerCase() === 'true';
+    this.hibpEnabled = this.configService.get<boolean>('HIBP_CHECK_ENABLED', false);
   }
 
   /**

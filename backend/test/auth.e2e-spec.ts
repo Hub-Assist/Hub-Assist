@@ -7,11 +7,16 @@ import { APP_GUARD } from '@nestjs/core';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthService } from '../src/auth/auth.service';
+import { OAuthService } from '../src/auth/oauth.service';
+import { CsrfService } from '../src/auth/csrf.service';
+import { SessionBroadcastService } from '../src/auth/session-broadcast.service';
 import { JwtStrategy } from '../src/auth/jwt.strategy';
 import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { TokenBlacklistService } from '../src/auth/token-blacklist.service';
 
-const JWT_SECRET = 'hubassist-secret';
+// JwtStrategy verifies against process.env.JWT_SECRET (falling back to
+// 'hubassist-secret') — this must match so tokens signed here validate.
+const JWT_SECRET = process.env.JWT_SECRET || 'hubassist-secret';
 
 const mockAuthService = {
   register: jest.fn(),
@@ -19,9 +24,28 @@ const mockAuthService = {
   login: jest.fn(),
   refresh: jest.fn(),
   logout: jest.fn(),
+  logoutAll: jest.fn(),
   resendOtp: jest.fn(),
   forgotPassword: jest.fn(),
   resetPassword: jest.fn(),
+};
+
+// Not exercised by this suite (no /oauth, /csrf-token, /session-events, or
+// /logout-all coverage here) — only needed to satisfy AuthController's DI.
+const mockOAuthService = {
+  issueToken: jest.fn(),
+  createClient: jest.fn(),
+  listClients: jest.fn(),
+};
+const mockCsrfService = {
+  generateToken: jest.fn(),
+  verifyToken: jest.fn(),
+  invalidateToken: jest.fn(),
+};
+const mockSessionBroadcastService = {
+  getSessionEventStream: jest.fn(),
+  broadcastSessionRevocation: jest.fn(),
+  cleanupSessionStream: jest.fn(),
 };
 
 describe('Auth (e2e)', () => {
@@ -57,6 +81,9 @@ describe('Auth (e2e)', () => {
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: mockAuthService },
+        { provide: OAuthService, useValue: mockOAuthService },
+        { provide: CsrfService, useValue: mockCsrfService },
+        { provide: SessionBroadcastService, useValue: mockSessionBroadcastService },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
         TokenBlacklistService,
         JwtStrategy,
@@ -69,8 +96,10 @@ describe('Auth (e2e)', () => {
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     const { TransformInterceptor } = await import('../src/common/interceptors/transform.interceptor');
-    const { LoggingInterceptor } = await import('../src/common/interceptors/logging.interceptor');
-    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
+    // LoggingInterceptor is already registered globally via APP_INTERCEPTOR in
+    // AppModule (with its LoggerService dependency injected) — only
+    // TransformInterceptor needs to be added manually here.
+    app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
 
     jwtService = module.get(JwtService);
@@ -301,16 +330,17 @@ describe('Auth (e2e)', () => {
       expect(res.status).not.toBe(404);
     });
 
-    it('GET /api/auth/* (no version prefix) falls back to v1 via defaultVersion', async () => {
+    it('GET /api/auth/* (no version prefix) 404s — URI versioning always requires the /v{n}/ segment', async () => {
       mockAuthService.register.mockResolvedValue({ message: 'ok' });
 
-      // Without /v1/ prefix — defaultVersion: '1' should still route correctly
+      // With VersioningType.URI, `defaultVersion` controls which version an
+      // UNVERSIONED CONTROLLER is mounted under (still under /v1/) — it does
+      // NOT make the framework accept requests missing the /v1/ segment.
       const res = await request(app.getHttpServer())
         .post('/api/auth/register')
         .send({ email: 'noversion@test.com', password: 'SecurePass123' });
 
-      // Should resolve to v1 handler (not 404)
-      expect(res.status).not.toBe(404);
+      expect(res.status).toBe(404);
     });
   });
 });

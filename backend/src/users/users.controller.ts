@@ -26,7 +26,12 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UserSearchService } from './services/user-search.service';
+import { UserSearchDto } from './dto/user-search.dto';
 import { UpdateUserDto } from './users.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { UserSearchService } from './services/user-search.service';
 import { FileValidationPipe } from '../common/pipes/file-validation.pipe';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -112,8 +117,6 @@ export class UsersController {
     return this.userSearchService.search(dto);
   }
 
-  @Get()
-
   @Post('change-password')
   @ApiOperation({ summary: 'Change own password' })
   @ApiResponse({ status: 200, description: 'Password changed successfully' })
@@ -151,7 +154,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'User role updated successfully' })
   async updateRole(@Param('id') id: string, @Body('role') role: UserRole, @Req() req: AuthenticatedRequest) {
     req.auditBefore = await this.usersService.findById(id);
-    const result = await this.usersService.update(id, { role });
+    const result = await this.usersService.update(id, { role: dto.role });
     await this.cacheManager.del(this.userCacheKey(id));
 
     // Blacklist the admin's current access token on role-change events so that
@@ -167,7 +170,8 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete user (soft delete)' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Delete user (soft delete, admin only)' })
   @ApiParam({ name: 'id', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   async delete(@Param('id') id: string) {

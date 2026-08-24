@@ -143,7 +143,11 @@ export function AdminUserTable() {
             className="pl-10"
           />
         </div>
-        <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as UserRole | "")}>
+        <Select
+          aria-label="Filter by role"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as UserRole | "")}
+        >
           <option value="">All Roles</option>
           <option value="admin">Admin</option>
           <option value="member">Member</option>
@@ -277,6 +281,7 @@ export function AdminUserTable() {
           </DialogHeader>
           <div className="py-4">
             <Select
+              aria-label="Select new role"
               value={editingUser?.role || ""}
               onChange={(e) => {
                 if (editingUser) {

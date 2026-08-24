@@ -13,6 +13,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/user.entity';
 import { AttendanceService } from './attendance.service';
+import { AttendanceAction } from './attendance.entity';
 import { ClockInDto, ClockOutDto, AttendanceSummaryQueryDto } from './attendance.dto';
 import { CursorPaginationQueryDto } from '../common/pagination/dto/cursor-pagination-query.dto';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';

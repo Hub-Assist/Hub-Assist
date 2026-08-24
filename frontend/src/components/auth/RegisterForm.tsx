@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { registerSchema, type RegisterFormValues } from "@/lib/schemas/registerSchema";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
+import { getApiErrorMessage } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 
 const inputClass =
@@ -26,7 +27,7 @@ export function RegisterForm() {
   const onSubmit = (values: RegisterFormValues) => {
     const { confirmPassword: _c, ...payload } = values; // eslint-disable-line @typescript-eslint/no-unused-vars
     mutate(payload, {
-      onSuccess: () => router.push(`/auth/verify-otp?email=${encodeURIComponent(payload.email)}`),
+      onSuccess: () => router.push(`/verify-otp?email=${encodeURIComponent(payload.email)}`),
     });
   };
 
@@ -34,7 +35,7 @@ export function RegisterForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {error && (
         <div role="alert" className="rounded-2xl border border-[#D4916E] bg-[#F3EBE2] px-4 py-3 text-sm text-[#1A1A1A]">
-          {error.message}
+          {getApiErrorMessage(error, "Unable to create your account. Please try again.")}
         </div>
       )}
 

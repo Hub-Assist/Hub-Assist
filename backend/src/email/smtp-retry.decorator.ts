@@ -41,7 +41,7 @@ export function Retry(options: RetryOptions = {}) {
             logger.log(`${propertyKey} succeeded on attempt ${attempt}`);
           }
           return result;
-        } catch (error) {
+        } catch (error: any) {
           lastError = error;
 
           if (!isRetryableError(error)) {

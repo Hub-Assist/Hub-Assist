@@ -13,6 +13,8 @@ import {
   Req,
   Sse,
   MessageEvent,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -74,8 +76,8 @@ export class WorkspacesController {
   @ApiQuery({ name: 'amenityMatch', enum: ['all', 'any'], required: false })
   @ApiResponse({ status: 200, description: 'Workspaces retrieved successfully' })
   findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('type') type?: WorkspaceType,
     @Query('availability') availability?: WorkspaceAvailability,
     @Query('amenities') amenities?: string[],
