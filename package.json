@@ -11,6 +11,7 @@
     "build:frontend": "npm --prefix frontend run build",
     "test:backend": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
+    "test:frontend:e2e": "npm --prefix frontend run test:e2e",
     "deploy:frontend": "cd frontend && vercel deploy --prod",
     "deploy:frontend:preview": "cd frontend && vercel deploy",
     "validate-env": "node backend/scripts/validate-env.js"
