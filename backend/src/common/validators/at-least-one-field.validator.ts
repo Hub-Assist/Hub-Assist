@@ -8,12 +8,13 @@ import {
 
 @ValidatorConstraint({ name: 'atLeastOneField', async: false })
 export class AtLeastOneFieldConstraint implements ValidatorConstraintInterface {
-  validate(value: any, args: ValidationArguments): boolean {
-    if (typeof value !== 'object' || value === null) {
+  validate(_value: any, args: ValidationArguments): boolean {
+    const target = args.object;
+    if (typeof target !== 'object' || target === null) {
       return false;
     }
-    // Check if at least one field is defined and not undefined
-    return Object.values(value).some((v) => v !== undefined);
+    // Check if at least one field on the whole DTO is defined and not undefined
+    return Object.values(target).some((v) => v !== undefined);
   }
 
   defaultMessage(args: ValidationArguments): string {
@@ -21,10 +22,16 @@ export class AtLeastOneFieldConstraint implements ValidatorConstraintInterface {
   }
 }
 
+// class-validator's registerDecorator is designed for property decorators, but
+// this needs to validate the whole DTO object. We register it against a
+// synthetic, non-existent property — class-validator invokes the constraint
+// regardless of whether that property is actually present on the instance,
+// and `args.object` (used above) gives the constraint access to the full DTO.
 export function AtLeastOneField(validationOptions?: ValidationOptions) {
-  return function (target: new (...args: unknown[]) => unknown) {
+  return function (target: Function) {
     registerDecorator({
-      target: target,
+      target,
+      propertyName: '__atLeastOneField',
       options: validationOptions,
       constraints: [],
       validator: AtLeastOneFieldConstraint,

@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import { RRule, Options } from 'rrule';
+import { RRule, Options as RRuleOptions } from 'rrule';
 
 /** Maximum number of instances allowed per recurring series (1 year of weekly). */
 export const MAX_RECURRENCE_INSTANCES = 52;
@@ -69,7 +69,7 @@ export class RecurrenceService {
    * Validates that an RRULE string is parseable without expanding it.
    * Returns the parsed rule options for inspection.
    */
-  validateRule(rruleString: string): Partial<Options> {
+  validateRule(rruleString: string): Partial<RRuleOptions> {
     try {
       const ruleText = rruleString.startsWith('RRULE:')
         ? rruleString.slice(6)

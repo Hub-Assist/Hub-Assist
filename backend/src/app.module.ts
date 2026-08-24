@@ -62,7 +62,11 @@ import { CsrfGuard } from './auth/csrf.guard';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const redisUrl = configService.get<string>('REDIS_URL');
-        const throttlers = [{ name: 'default', ttl: 60_000, limit: 10 }];
+        // Tests exercise the same user with many requests in quick succession
+        // within the production window — raise the ceiling under test so e2e
+        // suites aren't gated by a limit meant for abuse prevention.
+        const limit = configService.get<string>('NODE_ENV') === 'test' ? 1000 : 10;
+        const throttlers = [{ name: 'default', ttl: 60_000, limit }];
 
         if (redisUrl) {
           // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -79,7 +83,7 @@ import { CsrfGuard } from './auth/csrf.guard';
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      useFactory: (configService: ConfigService): Record<string, any> => {
         const redisUrl = configService.get<string>('REDIS_URL');
 
         if (redisUrl) {
@@ -113,8 +117,12 @@ import { CsrfGuard } from './auth/csrf.guard';
     ReportsModule,
   ],
   providers: [
-    { provide: APP_GUARD, useClass: RedisThrottlerGuard },
+    // JwtAuthGuard must run before RedisThrottlerGuard: the throttler keys its
+    // rate-limit bucket by the authenticated user's ID (falling back to IP for
+    // public routes), which requires req.user to already be populated. Guards
+    // registered as APP_GUARD run in this array's order.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RedisThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
     // LoggingInterceptor registered here so DI (LoggerService) works
@@ -137,12 +145,19 @@ export class AppModule implements NestModule {
     // happens at the guard layer (before middleware in NestJS execution order).
     // We therefore apply it as a functional middleware on specific routes so
     // it executes after authentication.
+    //
+    // `version: '1'` is required on every entry: all controllers are declared
+    // with `@Controller({ version: '1', ... })`, and NestJS only matches a
+    // RouteInfo against versioned routes when its `version` is set explicitly
+    // — `defaultVersion` on enableVersioning() does not make an unversioned
+    // RouteInfo match them. Without it, this middleware silently never runs.
     consumer
       .apply(IdempotencyMiddleware)
       .forRoutes(
-        { path: 'bookings', method: RequestMethod.POST },
-        { path: 'attendance', method: RequestMethod.POST },
-        { path: 'contact', method: RequestMethod.POST },
+        { path: 'bookings', method: RequestMethod.POST, version: '1' },
+        { path: 'attendance/clock-in', method: RequestMethod.POST, version: '1' },
+        { path: 'attendance/clock-out', method: RequestMethod.POST, version: '1' },
+        { path: 'contact', method: RequestMethod.POST, version: '1' },
       );
   }
 }

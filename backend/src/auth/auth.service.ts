@@ -190,25 +190,19 @@ export class AuthService {
     const rateLimitResult = await this.otpRateLimitService.checkAndRecordResend(email);
 
     if (!rateLimitResult.allowed) {
-      throw new HttpException(
-        {
-          message: `Too many OTP resend requests. Please wait ${rateLimitResult.retryAfterSeconds} seconds before trying again.`,
-          retryAfterSeconds: rateLimitResult.retryAfterSeconds,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new HttpException({
+        message: `Too many OTP resend requests. Please wait ${rateLimitResult.retryAfterSeconds} seconds before trying again.`,
+        retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+      }, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // DB-level fallback: if Redis was unavailable, enforce via DB counter
     // (OTP_RESEND_LIMIT resends tracked by otpResendCount, reset on successful verify)
     if (rateLimitResult.redisUnavailable && user.otpResendCount >= OTP_RESEND_LIMIT) {
-      throw new HttpException(
-        {
-          message: 'Too many OTP resend requests. Please try again later.',
-          retryAfterSeconds: 300,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      throw new HttpException({
+        message: 'Too many OTP resend requests. Please try again later.',
+        retryAfterSeconds: 300,
+      }, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // Generate a fresh OTP and reset all attempt counters
