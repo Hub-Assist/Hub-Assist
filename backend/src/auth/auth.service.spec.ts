@@ -2,12 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
-import { EmailService } from './email.service';
+import { EmailService } from '../email/email.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { ForgotPasswordProvider } from '../users/providers/forgot-password.provider';
 import { ResetPasswordProvider } from '../users/providers/reset-password.provider';
 import { TokenBlacklistService } from './token-blacklist.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OtpRateLimitService } from './otp-rate-limit.service';
+import { PasswordPolicyService } from './password-policy/password-policy.service';
+import { LoggerService } from '../common/logger/logger.service';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole } from '../users/user.entity';
@@ -23,6 +26,7 @@ describe('AuthService', () => {
   let emailService: jest.Mocked<EmailService>;
   let refreshTokenRepository: jest.Mocked<RefreshTokenRepository>;
   let tokenBlacklistService: jest.Mocked<TokenBlacklistService>;
+  let logger: jest.Mocked<LoggerService>;
 
   const mockUser: User = {
     id: 'user-123',
@@ -31,6 +35,10 @@ describe('AuthService', () => {
     role: UserRole.MEMBER,
     isVerified: true,
     createdAt: new Date(),
+    otpAttempts: 0,
+    otpResendCount: 0,
+    isActive: true,
+    totpEnabled: false,
   };
 
   beforeEach(async () => {
@@ -91,6 +99,29 @@ describe('AuthService', () => {
             sendToUser: jest.fn(),
           },
         },
+        {
+          provide: OtpRateLimitService,
+          useValue: {
+            checkAndRecordResend: jest.fn().mockResolvedValue({ allowed: true, remaining: 2, retryAfterSeconds: 0 }),
+            clearResendWindow: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: PasswordPolicyService,
+          useValue: {
+            validate: jest.fn().mockResolvedValue({ valid: true, violations: [] }),
+          },
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -99,6 +130,7 @@ describe('AuthService', () => {
     jwtService = module.get(JwtService);
     emailService = module.get(EmailService);
     refreshTokenRepository = module.get(RefreshTokenRepository);
+    logger = module.get(LoggerService);
     tokenBlacklistService = module.get(TokenBlacklistService);
 
     jest.clearAllMocks();
@@ -143,6 +175,29 @@ describe('AuthService', () => {
       usersService.create.mockRejectedValue(new Error('Duplicate email'));
 
       await expect(service.register(email, password)).rejects.toThrow('Duplicate email');
+    });
+
+    it('logs via the injected structured logger (not console.error) when the OTP email fails to send', async () => {
+      const email = 'newuser@example.com';
+      const password = 'Password123';
+      const sendError = new Error('SMTP unavailable');
+
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
+      usersService.create.mockResolvedValue(mockUser);
+      emailService.sendVerificationOtp.mockRejectedValue(sendError);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await service.register(email, password);
+      // Email dispatch is fire-and-forget — flush the microtask queue so the .catch runs.
+      await new Promise(process.nextTick);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to send registration OTP email',
+        expect.objectContaining({ email, error: sendError.message }),
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -320,6 +375,31 @@ describe('AuthService', () => {
       await expect(service.resendOtp(email)).rejects.toThrow(BadRequestException);
       await expect(service.resendOtp(email)).rejects.toThrow('OTP already sent. Please wait before requesting a new one.');
     });
+
+    it('sends the resend OTP via the real EmailService and logs failures via the structured logger', async () => {
+      const email = 'test@example.com';
+      const expiredOtpExpiry = new Date(Date.now() - 1000);
+      const userWithExpiredOtp = { ...mockUser, otp: 'oldHash', otpExpiry: expiredOtpExpiry };
+      const sendError = new Error('SMTP unavailable');
+
+      usersService.findByEmail.mockResolvedValue(userWithExpiredOtp);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('newOtpHash');
+      usersService.update.mockResolvedValue(mockUser);
+      emailService.sendVerificationOtp.mockRejectedValue(sendError);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await service.resendOtp(email);
+      await new Promise(process.nextTick);
+
+      expect(emailService.sendVerificationOtp).toHaveBeenCalledWith(email, expect.any(String));
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to send OTP resend email',
+        expect.objectContaining({ email, error: sendError.message }),
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   describe('forgotPassword', () => {
@@ -358,6 +438,28 @@ describe('AuthService', () => {
       expect(usersService.update).not.toHaveBeenCalled();
       expect(emailService.sendPasswordResetOtp).not.toHaveBeenCalled();
     });
+
+    it('logs via the injected structured logger (not console.error) when the reset OTP email fails to send', async () => {
+      const email = 'test@example.com';
+      const sendError = new Error('SMTP unavailable');
+
+      usersService.findByEmail.mockResolvedValue(mockUser);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('otpHash');
+      usersService.update.mockResolvedValue(mockUser);
+      emailService.sendPasswordResetOtp.mockRejectedValue(sendError);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await service.forgotPassword(email);
+      await new Promise(process.nextTick);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to send password reset OTP email',
+        expect.objectContaining({ email, error: sendError.message }),
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   describe('resetPassword', () => {
@@ -386,6 +488,34 @@ describe('AuthService', () => {
         }),
       );
       expect(emailService.sendPasswordResetSuccess).toHaveBeenCalledWith(email);
+    });
+
+    it('logs via the injected structured logger (not console.error) when the reset success email fails to send', async () => {
+      const email = 'test@example.com';
+      const otp = '123456';
+      const newPassword = 'NewPassword123';
+      const otpHash = 'hashedOtp';
+      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+      const userWithOtp = { ...mockUser, otp: otpHash, otpExpiry };
+      const sendError = new Error('SMTP unavailable');
+
+      usersService.findByEmail.mockResolvedValue(userWithOtp);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('newHashedPassword');
+      usersService.update.mockResolvedValue(mockUser);
+      emailService.sendPasswordResetSuccess.mockRejectedValue(sendError);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await service.resetPassword(email, otp, newPassword);
+      await new Promise(process.nextTick);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to send password reset success email',
+        expect.objectContaining({ email, error: sendError.message }),
+      );
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+      consoleErrorSpy.mockRestore();
     });
 
     it('should throw BadRequestException for weak password', async () => {

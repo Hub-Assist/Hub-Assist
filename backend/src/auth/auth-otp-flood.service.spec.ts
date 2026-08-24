@@ -52,6 +52,14 @@ const makeNotificationsService = () => ({
   sendToAll: jest.fn(),
 });
 
+const makeLoggerService = () => ({
+  log: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+});
+
 // OtpRateLimitService mock — controls sliding-window behaviour per test
 const makeOtpRateLimitService = (
   allowed = true,
@@ -89,6 +97,9 @@ function buildService(
     rateLimitOverrides?.remaining ?? 2,
     rateLimitOverrides?.retryAfterSeconds ?? 0,
   );
+  const tokenBlacklistService = { blacklistToken: jest.fn().mockResolvedValue(undefined) };
+  const passwordPolicyService = { validate: jest.fn().mockResolvedValue({ valid: true, violations: [] }) };
+  const logger = makeLoggerService();
 
   const service = new AuthService(
     usersService as any,
@@ -99,9 +110,12 @@ function buildService(
     null as any, // resetPasswordProvider
     notificationsService as any,
     rateLimitService,
+    tokenBlacklistService as any,
+    passwordPolicyService as any,
+    logger as any,
   );
 
-  return { service, usersService, emailService, rateLimitService };
+  return { service, usersService, emailService, rateLimitService, logger };
 }
 
 // ---------------------------------------------------------------------------

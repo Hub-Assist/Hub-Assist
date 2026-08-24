@@ -11,7 +11,7 @@ import { BiometricService } from './biometric.service';
 import { TotpService } from './totp.service';
 import { TotpController } from './totp.controller';
 import { JwtStrategy } from './jwt.strategy';
-import { EmailService } from './email.service';
+import { EmailModule } from '../email/email.module';
 import { RefreshToken } from './refresh-token.entity';
 import { WebAuthnCredential } from './webauthn-credential.entity';
 import { OAuthClient } from './oauth-client.entity';
@@ -34,6 +34,7 @@ import { OAuthService } from './oauth.service';
     NotificationsModule,
     TokenBlacklistModule,
     PasswordPolicyModule,
+    EmailModule,
     TypeOrmModule.forFeature([RefreshToken, WebAuthnCredential, User, OAuthClient]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -49,7 +50,6 @@ import { OAuthService } from './oauth.service';
     BiometricService,
     TotpService,
     JwtStrategy,
-    EmailService,
     RefreshTokenRepository,
     SessionBroadcastService,
     CsrfService,
