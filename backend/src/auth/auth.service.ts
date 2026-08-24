@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
-import { EmailService } from './email.service';
+import { EmailService } from '../email/email.service';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { ForgotPasswordProvider } from '../users/providers/forgot-password.provider';
 import { ResetPasswordProvider } from '../users/providers/reset-password.provider';
@@ -11,6 +11,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OtpRateLimitService, OTP_MAX_ATTEMPTS, OTP_RESEND_LIMIT } from './otp-rate-limit.service';
 import { TokenBlacklistService } from './token-blacklist.service';
 import { PasswordPolicyService } from './password-policy/password-policy.service';
+import { LoggerService } from '../common/logger/logger.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
     private otpRateLimitService: OtpRateLimitService,
     private tokenBlacklistService: TokenBlacklistService,
     private passwordPolicyService: PasswordPolicyService,
+    private readonly logger: LoggerService,
   ) {}
 
   private generateOtp(): string {
@@ -97,7 +99,7 @@ export class AuthService {
 
     // Send OTP email (non-blocking)
     this.emailService.sendVerificationOtp(email, otp).catch(err => {
-      console.error('Failed to send OTP email:', err);
+      this.logger.error('Failed to send registration OTP email', { email, error: err?.message });
     });
 
     // Notify admins of new member registration
@@ -219,7 +221,7 @@ export class AuthService {
     });
 
     this.emailService.sendVerificationOtp(email, otp).catch(err => {
-      console.error('Failed to send OTP email:', err);
+      this.logger.error('Failed to send OTP resend email', { email, error: err?.message });
     });
 
     return {
@@ -326,7 +328,7 @@ export class AuthService {
      });
 
      this.emailService.sendPasswordResetOtp(email, otp).catch(err => {
-       console.error('Failed to send password reset OTP:', err);
+       this.logger.error('Failed to send password reset OTP email', { email, error: err?.message });
      });
 
      return response;
@@ -368,7 +370,7 @@ export class AuthService {
     });
 
      this.emailService.sendPasswordResetSuccess(email).catch(err => {
-       console.error('Failed to send password reset success email:', err);
+       this.logger.error('Failed to send password reset success email', { email, error: err?.message });
      });
 
      return { message: 'Password reset successfully' };
