@@ -24,6 +24,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { OAuthTokenDto, OAuthTokenResponseDto } from './dto/oauth-token.dto';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('auth')
 @Controller({ version: '1', path: 'auth' })
@@ -124,7 +125,7 @@ export class AuthController {
       },
     },
   })
-  async getCsrfToken(@Req() req: any) {
+  async getCsrfToken(@Req() req: AuthenticatedRequest) {
     const csrfToken = await this.csrfService.generateToken(req.user.jti);
     return { csrfToken };
   }
@@ -134,7 +135,7 @@ export class AuthController {
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Logout user — immediately revokes the current access token' })
   @ApiResponse({ status: 200, description: 'Logout successful' })
-  async logout(@Req() req: any) {
+  async logout(@Req() req: AuthenticatedRequest) {
     // Invalidate CSRF token on logout
     if (req.user?.jti) {
       await this.csrfService.invalidateToken(req.user.jti);
@@ -149,7 +150,7 @@ export class AuthController {
   @ApiBearerAuth('bearer')
   @ApiOperation({ summary: 'Logout from all devices — revokes all refresh tokens and broadcasts session termination' })
   @ApiResponse({ status: 200, description: 'Logged out from all devices' })
-  async logoutAll(@Req() req: any) {
+  async logoutAll(@Req() req: AuthenticatedRequest) {
     const result = await this.authService.logoutAll(req.user.id, req.user.jti, req.user.exp);
     // Broadcast session revocation to all connected SSE clients
     this.sessionBroadcastService.broadcastSessionRevocation(req.user.id);
@@ -162,7 +163,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Server-Sent Events stream for session termination notifications' })
   @ApiResponse({ status: 200, description: 'SSE stream established' })
   @Sse()
-  sessionEvents(@Req() req: any): Observable<any> {
+  sessionEvents(@Req() req: AuthenticatedRequest): Observable<any> {
     const userId = req.user.id;
     const eventStream = this.sessionBroadcastService.getSessionEventStream(userId);
 

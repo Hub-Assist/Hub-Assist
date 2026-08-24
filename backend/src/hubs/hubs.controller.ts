@@ -4,6 +4,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/user.entity';
 import { HubsService } from './hubs.service';
 import { CreateHubDto } from './hubs.dto';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('hubs')
 @ApiBearerAuth('bearer')
@@ -15,7 +16,7 @@ export class HubsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Create a new hub (admin only)' })
   @ApiResponse({ status: 201, description: 'Hub created successfully' })
-  create(@Request() req: any, @Body() dto: CreateHubDto) {
+  create(@Request() req: AuthenticatedRequest, @Body() dto: CreateHubDto) {
     return this.service.create(req.user.sub, dto);
   }
 

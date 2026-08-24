@@ -1,6 +1,7 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerLimitDetail, ThrottlerRequest } from '@nestjs/throttler';
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
 
 /**
  * Extends the stock ThrottlerGuard to:
@@ -17,9 +18,8 @@ export class RedisThrottlerGuard extends ThrottlerGuard {
    * rate-limit counters are per-user rather than per-IP. Falls back to IP
    * for unauthenticated routes (e.g. /auth/login, /auth/resend-otp).
    */
-  protected async getTracker(req: Request): Promise<string> {
-    const userId: string | undefined =
-      (req as any).user?.id ?? (req as any).user?.sub;
+  protected async getTracker(req: AuthenticatedRequest): Promise<string> {
+    const userId: string | undefined = req.user?.id ?? req.user?.sub;
     return userId ?? req.ip ?? 'anonymous';
   }
 
