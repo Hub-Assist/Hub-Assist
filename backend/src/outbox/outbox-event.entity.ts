@@ -33,5 +33,8 @@ export class OutboxEvent {
   createdAt: Date;
 
   @Column({ type: 'timestamp', nullable: true })
+  nextRetryAt?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
   processedAt?: Date;
 }
