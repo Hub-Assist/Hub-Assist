@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Booking } from './booking.entity';
 import { CancellationPolicy } from './cancellation-policy.entity';
 import { BookingsService } from './bookings.service';
+import { BookingSeriesService } from './booking-series.service';
+import { BookingPricingService } from './booking-pricing.service';
 import { ConflictDetectionService } from './conflict-detection.service';
 import { CapacityCheckService } from './capacity-check.service';
 import { RecurrenceService } from './recurrence.service';
@@ -16,10 +18,11 @@ import { PricingModule } from '../pricing/pricing.module';
 import { OutboxModule } from '../outbox/outbox.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { CacheModule } from '../common/cache/cache.module';
+import { PriceRule } from '../pricing/price-rule.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Booking, Workspace, CancellationPolicy]),
+    TypeOrmModule.forFeature([Booking, Workspace, CancellationPolicy, PriceRule]),
     StellarModule,
     NotificationsModule,
     PricingModule,
@@ -29,6 +32,8 @@ import { CacheModule } from '../common/cache/cache.module';
   ],
   providers: [
     BookingsService,
+    BookingSeriesService,
+    BookingPricingService,
     ConflictDetectionService,
     CapacityCheckService,
     RecurrenceService,
@@ -36,6 +41,6 @@ import { CacheModule } from '../common/cache/cache.module';
     RolesGuard,
   ],
   controllers: [BookingsController],
-  exports: [BookingsService, CancellationPolicyService, CapacityCheckService],
+  exports: [BookingsService, BookingSeriesService, BookingPricingService, CancellationPolicyService, CapacityCheckService],
 })
 export class BookingsModule {}
