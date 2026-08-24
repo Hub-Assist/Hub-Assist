@@ -6,6 +6,23 @@ const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/**
+ * Extracts the backend's own error message from a failed request.
+ *
+ * Axios's own `error.message` is a generic `"Request failed with status code
+ * 401"` — it never reflects the response body. Callers that just render
+ * `error.message` end up showing that generic string to the user instead of
+ * whatever the backend actually said (e.g. "Invalid email or password").
+ */
+export function getApiErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string } | undefined;
+    if (data?.message) return data.message;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 // Lazily resolved store reference to avoid circular dependency
 let _getState: (() => { accessToken: string | null; refreshAccessToken: () => Promise<void>; logout: () => void }) | null = null;
 
@@ -28,6 +45,21 @@ apiClient.interceptors.request.use(async (config) => {
 let isRefreshing = false;
 let refreshQueue: Array<(token: string) => void> = [];
 
+// A 401 from one of these means "wrong credentials" / "bad or expired code" — not
+// "your session expired". Retrying them through the refresh flow doesn't make sense
+// (there's no session to refresh yet) and, since a failed refresh forces a hard
+// `logout()` redirect, it was wiping out the very error the caller needed to show
+// (e.g. "Invalid email or password") before the user ever saw it.
+const AUTH_ENTRY_ENDPOINTS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/verify-otp',
+  '/auth/resend-otp',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
+
 apiClient.interceptors.response.use(
   (res) => {
     // Unwrap the { success, data, timestamp } envelope when present
@@ -38,8 +70,9 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const original = error.config;
+    const isAuthEntryEndpoint = AUTH_ENTRY_ENDPOINTS.some((endpoint) => original?.url?.includes(endpoint));
 
-    if (error.response?.status !== 401 || original._retry) {
+    if (error.response?.status !== 401 || original._retry || isAuthEntryEndpoint) {
       return Promise.reject(error);
     }
 
@@ -242,6 +275,10 @@ export const api = {
 
   issueMembershipToken: (data: { userId: string; tier: number; expiryDate: string }) =>
     post<{ tokenId: string; message: string }>('/membership-tokens', data),
+
+  // Newsletter
+  subscribeNewsletter: (email: string) =>
+    post<{ message: string }>('/newsletter/subscribe', { email }),
 
   // Newsletter preferences (token-authenticated, no login required)
   getNewsletterPreferences: (token: string) =>

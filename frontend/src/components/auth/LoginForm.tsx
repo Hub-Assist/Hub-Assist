@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { loginSchema, type LoginFormValues } from "@/lib/schemas/loginSchema";
 import { useLoginUser } from "@/hooks/useLoginUser";
 import { useAuthStore } from "@/lib/store/authStore";
+import { getApiErrorMessage } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 
 export function LoginForm() {
@@ -34,7 +35,7 @@ export function LoginForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
       {error && (
         <div role="alert" className="rounded-2xl border border-[#D4916E] bg-[#F3EBE2] px-4 py-3 text-sm text-[#1A1A1A]">
-          {error.message}
+          {getApiErrorMessage(error, "Unable to sign in. Please try again.")}
         </div>
       )}
 

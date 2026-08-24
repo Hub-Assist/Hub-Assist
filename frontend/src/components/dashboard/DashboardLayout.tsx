@@ -16,6 +16,7 @@ import {
   LogOut,
   Building2,
   User,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -28,11 +29,12 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/workspaces", label: "Workspaces", icon: Building2 },
+  { href: "/workspaces", label: "Workspaces", icon: Building2 },
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/dashboard/attendance", label: "Attendance", icon: Clock },
-  { href: "/dashboard/profile", label: "Profile", icon: User },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings, adminOnly: true },
+  { href: "/profile", label: "Profile", icon: User },
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/admin", label: "Admin", icon: ShieldCheck, adminOnly: true },
 ] as const;
 
 /** Items shown in the mobile bottom nav (max 4 to keep touch targets comfortable). */
@@ -40,7 +42,7 @@ const BOTTOM_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/dashboard/attendance", label: "Attendance", icon: Clock },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 // ---------------------------------------------------------------------------
