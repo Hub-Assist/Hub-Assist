@@ -22,12 +22,12 @@ export class AtLeastOneFieldConstraint implements ValidatorConstraintInterface {
 }
 
 export function AtLeastOneField(validationOptions?: ValidationOptions) {
-  return function (target: Object) {
+  return function (target: new (...args: unknown[]) => unknown) {
     registerDecorator({
       target: target,
       options: validationOptions,
       constraints: [],
       validator: AtLeastOneFieldConstraint,
-    });
+    } as any);
   };
 }
