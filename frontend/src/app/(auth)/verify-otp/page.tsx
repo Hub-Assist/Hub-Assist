@@ -2,7 +2,7 @@
 
 import { Suspense, useRef, useState, KeyboardEvent, ClipboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { post } from "@/lib/apiClient";
+import { post, getApiErrorMessage } from "@/lib/apiClient";
 import { Button } from "@/components/ui/Button";
 import { ResendButton } from "@/components/auth/ResendButton";
 
@@ -63,7 +63,7 @@ function VerifyOtpContent() {
       document.cookie = `token=${data.access_token}; path=/; SameSite=Lax`;
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid or expired OTP.");
+      setError(getApiErrorMessage(err, "Invalid or expired OTP."));
     } finally {
       setIsPending(false);
     }

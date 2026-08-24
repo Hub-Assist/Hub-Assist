@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
 import { Repository } from 'typeorm';
+import { calculateNextRetryAt, isDeadLetter } from '../utils/retry-backoff';
 import { CreateWebhookSubscriptionDto } from './webhooks.dto';
 import { WebhookDelivery, WebhookDeliveryStatus } from './webhook-delivery.entity';
 import { WebhookSubscription } from './webhook-subscription.entity';
@@ -89,10 +90,6 @@ export class WebhookService {
     }
   }
 
-  calculateNextRetryAt(attempts: number, now = new Date()): Date {
-    const delaySeconds = 2 ** Math.max(attempts - 1, 0);
-    return new Date(now.getTime() + delaySeconds * 1000);
-  }
 
   generateSignature(secret: string, payload: Record<string, any>): string {
     const body = JSON.stringify(payload);
@@ -137,13 +134,13 @@ export class WebhookService {
   }
 
   private async markForRetry(delivery: WebhookDelivery, attempts: number, responseCode?: number, lastError?: string) {
-    const isDead = attempts >= MAX_WEBHOOK_ATTEMPTS;
+    const isDead = isDeadLetter(attempts, MAX_WEBHOOK_ATTEMPTS);
     await this.deliveryRepo.update(delivery.id, {
       attempts,
       responseCode,
       lastError,
       status: isDead ? WebhookDeliveryStatus.DEAD : WebhookDeliveryStatus.FAILED,
-      nextRetryAt: isDead ? delivery.nextRetryAt : this.calculateNextRetryAt(attempts),
+      nextRetryAt: isDead ? delivery.nextRetryAt : calculateNextRetryAt(attempts),
     });
 
     this.logger.warn(`Webhook delivery ${delivery.id} failed on attempt ${attempts}: ${lastError}`);

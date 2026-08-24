@@ -57,7 +57,7 @@ exports[`DashboardLayout snapshots lg (1280px) — renders desktop sidebar 1`] =
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/workspaces"
+            href="/workspaces"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -93,7 +93,7 @@ exports[`DashboardLayout snapshots lg (1280px) — renders desktop sidebar 1`] =
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/profile"
+            href="/profile"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -105,7 +105,7 @@ exports[`DashboardLayout snapshots lg (1280px) — renders desktop sidebar 1`] =
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/settings"
+            href="/settings"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -113,6 +113,18 @@ exports[`DashboardLayout snapshots lg (1280px) — renders desktop sidebar 1`] =
             />
             <span>
               Settings
+            </span>
+          </a>
+          <a
+            class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
+            href="/admin"
+          >
+            <svg
+              class="h-5 w-5 shrink-0"
+              data-testid="icon-ShieldCheck"
+            />
+            <span>
+              Admin
             </span>
           </a>
         </nav>
@@ -238,7 +250,7 @@ exports[`DashboardLayout snapshots lg (1280px) — renders desktop sidebar 1`] =
       <a
         aria-label="Settings"
         class="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors min-h-[56px] text-text-tertiary hover:text-text"
-        href="/dashboard/settings"
+        href="/settings"
       >
         <svg
           class="h-5 w-5"
@@ -310,7 +322,7 @@ exports[`DashboardLayout snapshots md (768px) — renders desktop sidebar and no
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/workspaces"
+            href="/workspaces"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -346,7 +358,7 @@ exports[`DashboardLayout snapshots md (768px) — renders desktop sidebar and no
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/profile"
+            href="/profile"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -358,7 +370,7 @@ exports[`DashboardLayout snapshots md (768px) — renders desktop sidebar and no
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/settings"
+            href="/settings"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -366,6 +378,18 @@ exports[`DashboardLayout snapshots md (768px) — renders desktop sidebar and no
             />
             <span>
               Settings
+            </span>
+          </a>
+          <a
+            class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
+            href="/admin"
+          >
+            <svg
+              class="h-5 w-5 shrink-0"
+              data-testid="icon-ShieldCheck"
+            />
+            <span>
+              Admin
             </span>
           </a>
         </nav>
@@ -491,7 +515,7 @@ exports[`DashboardLayout snapshots md (768px) — renders desktop sidebar and no
       <a
         aria-label="Settings"
         class="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors min-h-[56px] text-text-tertiary hover:text-text"
-        href="/dashboard/settings"
+        href="/settings"
       >
         <svg
           class="h-5 w-5"
@@ -563,7 +587,7 @@ exports[`DashboardLayout snapshots sm (375px) — renders bottom nav and no desk
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/workspaces"
+            href="/workspaces"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -599,7 +623,7 @@ exports[`DashboardLayout snapshots sm (375px) — renders bottom nav and no desk
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/profile"
+            href="/profile"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -611,7 +635,7 @@ exports[`DashboardLayout snapshots sm (375px) — renders bottom nav and no desk
           </a>
           <a
             class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
-            href="/dashboard/settings"
+            href="/settings"
           >
             <svg
               class="h-5 w-5 shrink-0"
@@ -619,6 +643,18 @@ exports[`DashboardLayout snapshots sm (375px) — renders bottom nav and no desk
             />
             <span>
               Settings
+            </span>
+          </a>
+          <a
+            class="flex items-center gap-3 rounded-xl text-sm font-medium transition-colors min-h-[44px] px-3 text-text-secondary hover:bg-text/5"
+            href="/admin"
+          >
+            <svg
+              class="h-5 w-5 shrink-0"
+              data-testid="icon-ShieldCheck"
+            />
+            <span>
+              Admin
             </span>
           </a>
         </nav>
@@ -744,7 +780,7 @@ exports[`DashboardLayout snapshots sm (375px) — renders bottom nav and no desk
       <a
         aria-label="Settings"
         class="flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors min-h-[56px] text-text-tertiary hover:text-text"
-        href="/dashboard/settings"
+        href="/settings"
       >
         <svg
           class="h-5 w-5"

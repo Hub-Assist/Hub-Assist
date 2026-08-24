@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import axios, { AxiosError } from "axios";
+import { AxiosError } from "axios";
+import { api } from "@/lib/apiClient";
 import { useToast } from "@/components/ui/ToastProvider";
 
 export interface UseNewsletterFormResult {
@@ -18,10 +19,7 @@ export function useNewsletterForm(): UseNewsletterFormResult {
   const { showToast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: async (newEmail: string) => {
-      const response = await axios.post("/api/newsletter/subscribe", { email: newEmail });
-      return response.data;
-    },
+    mutationFn: (newEmail: string) => api.subscribeNewsletter(newEmail),
     onSuccess: () => {
       setIsSubmitted(true);
       showToast("success", "Successfully subscribed to the newsletter!");

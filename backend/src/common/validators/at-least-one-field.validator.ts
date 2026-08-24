@@ -35,6 +35,6 @@ export function AtLeastOneField(validationOptions?: ValidationOptions) {
       options: validationOptions,
       constraints: [],
       validator: AtLeastOneFieldConstraint,
-    });
+    } as any);
   };
 }

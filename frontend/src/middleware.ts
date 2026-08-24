@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const publicRoutes = [
-  "/",
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-otp",
-  "/contact",
-  "/privacy-policy",
-  "/terms-of-service",
-];
-
 const protectedRoutes: Record<string, string | null> = {
   "/dashboard": null,
   "/profile": null,
