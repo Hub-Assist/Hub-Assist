@@ -179,3 +179,91 @@ export function formatTimeLabel(isoStr?: string): string {
     timeZone: "UTC",
   });
 }
+
+// ─── Local time-zone helpers ────────────────────────────────────────────────
+//
+// The helpers above format dates in UTC (used for attendance records, which
+// are day-bucketed server-side). The helpers below instead operate in the
+// user's local time zone — used by calendar-style UI (e.g. WorkspaceCalendar)
+// where slot times must be shown as the local wall-clock time.
+
+/** Adds `days` calendar days to `date` in local time (returns a new Date). */
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/**
+ * Returns a YYYY-MM-DD string for the given Date in the user's local time zone.
+ * Uses Intl.DateTimeFormat to avoid manual offset arithmetic.
+ */
+export function toLocalDateString(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date); // en-CA produces YYYY-MM-DD
+}
+
+/** Returns Monday of the local calendar week that contains `date`. */
+export function getLocalWeekStart(date: Date): Date {
+  const d = new Date(date);
+  // getDay(): 0=Sun … 6=Sat → Monday offset
+  const dayOfWeek = d.getDay();
+  const distanceToMonday = (dayOfWeek + 6) % 7; // 0 for Mon, 6 for Sun
+  d.setDate(d.getDate() - distanceToMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Converts a UTC ISO timestamp to the local hour (0–23) in the viewer's
+ * time zone, e.g. for placing a slot in the correct row of a calendar grid.
+ */
+export function getLocalHour(isoString: string): number {
+  return new Date(isoString).getHours();
+}
+
+/**
+ * Formats a UTC ISO timestamp into the user's local time zone as a short
+ * time label, e.g. "8:00 AM".
+ */
+export function formatLocalTime(isoString: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(isoString));
+}
+
+/**
+ * Formats a Date as a short weekday + day-of-month, for a calendar column
+ * header. e.g. { weekday: "Mon", day: 28 }
+ */
+export function formatLocalDayHeader(date: Date): { weekday: string; day: number } {
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date);
+  return { weekday, day: date.getDate() };
+}
+
+/**
+ * Formats a local week-start Date into a human-readable range label, e.g.
+ * "Jul 28 – Aug 3, 2026".
+ */
+export function formatLocalWeekRange(weekStart: Date): string {
+  const weekEnd = addDays(weekStart, 6);
+  const startLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(weekStart);
+  const endLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(weekEnd);
+  return `${startLabel} – ${endLabel}`;
+}
+
+/**
+ * Formats a local Date into a `datetime-local` input value (YYYY-MM-DDTHH:mm).
+ */
+export function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}

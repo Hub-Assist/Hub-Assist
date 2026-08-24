@@ -2,23 +2,16 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import { User, UserRole } from "@/types/user";
 import { api } from "@/lib/apiClient";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/Table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
-
-interface UsersResponse {
-  users: User[];
-  total: number;
-  page: number;
-  totalPages: number;
-}
+import { UserFilters } from "./admin-user-table/UserFilters";
+import { UserTable } from "./admin-user-table/UserTable";
+import { UserPagination } from "./admin-user-table/UserPagination";
+import { EditUserRoleDialog } from "./admin-user-table/EditUserRoleDialog";
+import { DeleteUserDialog } from "./admin-user-table/DeleteUserDialog";
+import type { UsersResponse } from "./admin-user-table/types";
 
 export function AdminUserTable() {
   const { token } = useAuthStore();
@@ -132,201 +125,40 @@ export function AdminUserTable() {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select
-          aria-label="Filter by role"
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as UserRole | "")}
-        >
-          <option value="">All Roles</option>
-          <option value="admin">Admin</option>
-          <option value="member">Member</option>
-          <option value="staff">Staff</option>
-        </Select>
-      </div>
+      <UserFilters
+        search={search}
+        onSearchChange={setSearch}
+        roleFilter={roleFilter}
+        onRoleFilterChange={setRoleFilter}
+      />
 
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Avatar</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Verified</TableHead>
-            <TableHead>Active</TableHead>
-            <TableHead>Joined Date</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredUsers.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                No users found matching your criteria.
-              </TableCell>
-            </TableRow>
-          ) : (
-            filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full" />
-                    ) : (
-                      <span className="text-sm font-medium">{user.name.charAt(0)}</span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                    user.role === 'staff' ? 'bg-blue-100 text-blue-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {user.role}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {user.verified ? (
-                    <span className="text-green-600">✓</span>
-                  ) : (
-                    <span className="text-red-600">✗</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {user.active ? (
-                    <span className="text-green-600">Active</span>
-                  ) : (
-                    <span className="text-red-600">Inactive</span>
-                  )}
-                </TableCell>
-                <TableCell>{new Date(user.joinedDate).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingUser(user)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleActiveMutation.mutate({ userId: user.id, active: !user.active })}
-                    >
-                      {user.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteUser(user)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+      <UserTable
+        users={filteredUsers}
+        onEdit={setEditingUser}
+        onToggleActive={(user) => toggleActiveMutation.mutate({ userId: user.id, active: !user.active })}
+        onDelete={setDeleteUser}
+      />
 
-      {/* Pagination */}
-      {data && data.totalPages > 1 && (
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, data.total)} of {data.total} users
-          </div>
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setCurrentPage(prev => Math.min(data.totalPages, prev + 1))}
-              disabled={currentPage === data.totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {data && (
+        <UserPagination
+          data={data}
+          currentPage={currentPage}
+          onPrev={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+          onNext={() => setCurrentPage((prev) => Math.min(data.totalPages, prev + 1))}
+        />
       )}
 
-      {/* Edit Role Dialog */}
-      <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User Role</DialogTitle>
-            <DialogDescription>
-              Change the role for {editingUser?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Select
-              aria-label="Select new role"
-              value={editingUser?.role || ""}
-              onChange={(e) => {
-                if (editingUser) {
-                  updateRoleMutation.mutate({
-                    userId: editingUser.id,
-                    role: e.target.value as UserRole
-                  });
-                }
-              }}
-            >
-              <option value="member">Member</option>
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingUser(null)}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditUserRoleDialog
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onChangeRole={(userId, role) => updateRoleMutation.mutate({ userId, role })}
+      />
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {deleteUser?.name}? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteUser(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteUser && deleteMutation.mutate(deleteUser.id)}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteUserDialog
+        user={deleteUser}
+        onClose={() => setDeleteUser(null)}
+        onConfirm={(userId) => deleteMutation.mutate(userId)}
+      />
     </div>
   );
 }

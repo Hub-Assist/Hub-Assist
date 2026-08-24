@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Booking } from "@/lib/apiClient";
 import { mutationKeys } from "@/lib/react-query/keys/mutationKeys";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 
 export function useConfirmBooking() {
   const queryClient = useQueryClient();
@@ -11,16 +12,16 @@ export function useConfirmBooking() {
     mutationKey: mutationKeys.bookings.confirm,
     mutationFn: (id: string) => api.confirmBooking(id),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: ["bookings"] });
-      await queryClient.cancelQueries({ queryKey: ["booking", id] });
+      await queryClient.cancelQueries({ queryKey: queryKeys.bookings.all });
+      await queryClient.cancelQueries({ queryKey: queryKeys.bookings.detail(id) });
 
-      const previousBookingsList = queryClient.getQueriesData<Booking[]>({ queryKey: ["bookings"] });
-      const previousBooking = queryClient.getQueryData<Booking>(["booking", id]);
+      const previousBookingsList = queryClient.getQueriesData<Booking[]>({ queryKey: queryKeys.bookings.all });
+      const previousBooking = queryClient.getQueryData<Booking>(queryKeys.bookings.detail(id));
 
-      queryClient.setQueriesData<Booking[]>({ queryKey: ["bookings"] }, (old) =>
+      queryClient.setQueriesData<Booking[]>({ queryKey: queryKeys.bookings.all }, (old) =>
         old?.map((b) => (b.id === id ? { ...b, status: "confirmed" } : b)) ?? old
       );
-      queryClient.setQueryData<Booking>(["booking", id], (old) =>
+      queryClient.setQueryData<Booking>(queryKeys.bookings.detail(id), (old) =>
         old ? { ...old, status: "confirmed" } : old
       );
 
@@ -31,12 +32,12 @@ export function useConfirmBooking() {
         queryClient.setQueryData(queryKey, data);
       });
       if (context?.previousBooking) {
-        queryClient.setQueryData(["booking", id], context.previousBooking);
+        queryClient.setQueryData(queryKeys.bookings.detail(id), context.previousBooking);
       }
     },
     onSettled: (_, __, id) => {
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["booking", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(id) });
     },
   });
 }

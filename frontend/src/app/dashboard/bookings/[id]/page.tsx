@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
+import { queryKeys } from "@/lib/react-query/keys/queryKeys";
 import { useAuthStore } from "@/lib/store/authStore";
 import { BookingStatusBadge } from "@/components/bookings/BookingStatusBadge";
 import { BookingActions } from "@/components/bookings/BookingActions";
@@ -17,7 +18,7 @@ export default function BookingDetailPage() {
   const isAdmin = user?.role === "admin";
 
   const { data: booking, isLoading, isError } = useQuery({
-    queryKey: ["booking", id],
+    queryKey: queryKeys.bookings.detail(id),
     queryFn: () => api.getBooking(id),
     enabled: !!token && !!id,
   });
